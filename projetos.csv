@@ -1,5 +1,0 @@
-Projeto,Cliente,Localizacao,Placa,Post,DataInicio,DataFinal,Contrato,Status,Briefing,Arquiteto,Tipo,Pacote,m2,Parcelas,ValorTotal,ResponsávelElétrico,ResponsávelHidráulico,ResponsávelModelagem,ResponsávelDetalhamento
-45,Teste,Londres,Sim,Sim,2025-02-04,2025-02-04,Sim,Concluído,Sim,Não sei,Residencial,Completo,10.0,0,0.0,Flávio,Flávio,Bia,Bia
-50,João,Marilia,Sim,Sim,2025-01-31,2025-02-03,Sim,Concluído,Sim,Teste,Residencial,Completo,200.0,5,9999.98,Flávio,Flávio,Bia,Bia
-80,Márcio2,Guarulhos,Sim,Não,30/01/2025,30/03/2025,Sim,Concluído,Sim,Maurício Rezende,Residencial,Hidráulico,200.0,10,1000.0,João,Flávio,Victor,Bia
-45,Teste5,Londres,Sim,Sim,2025-02-04,2025-02-04,Sim,Concluído,Sim,Não sei,Residencial,Completo,10.0,0,0.0,Flávio,Flávio,Bia,Bia

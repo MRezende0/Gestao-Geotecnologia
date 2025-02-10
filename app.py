@@ -57,149 +57,193 @@ add_custom_css()
 BASE_PATH = "dados/base.csv"
 TAREFAS_PATH = "dados/tarefas.csv"
 EXTRAS_PATH = "dados/extras.csv"
+POS_PATH = "dados/pos_aplicacao.xlsx"
+REF_PAS_PATH = "dados/reforma_passagem.xlsx"
 
-# Função para carregar dados
-def carregar_dados(caminho, colunas):
+# Função para carregar dados de CSV ou Excel
+def carregar_dados(caminho, colunas=None, aba=None):
     if os.path.exists(caminho):
-        return pd.read_csv(caminho)
+        _, extensao = os.path.splitext(caminho)
+        extensao = extensao.lower()
+        if extensao == ".csv":
+            return pd.read_csv(caminho)
+        elif extensao in [".xls", ".xlsx"]:
+            if aba is not None:
+                return pd.read_excel(caminho, sheet_name=aba)
+            else:
+                return pd.read_excel(caminho)  # Carrega a primeira aba por padrão
+        else:
+            raise ValueError(f"Formato de arquivo {extensao} não suportado!")
     else:
         return pd.DataFrame(columns=colunas)
+    
+# Carrega as duas abas
+df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Carrega a primeira aba
+df_reforma = carregar_dados(REF_PAS_PATH, aba=1)  # Carrega a segunda aba
 
 # Carrega os dados iniciais
 df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
+df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
+df_extras = carregar_dados(EXTRAS_PATH, ["Data", "Colaborador", "Solicitante", "SetorSolicitante", "Atividade", "Horas", "Descrição"])
+df_ref_pas = carregar_dados(REF_PAS_PATH, [""])
 
-########################################## TRANSAÇÕES ##########################################
+# Mesclar bases de dados
+df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
+
+########################################## DASHBOARD ##########################################
 
 def dashboard():
-    st.title("📊 Dashboard Atividades")
+    st.title("📊 Dashboard")
 
-    # # Exibe métricas
-    # col1, col2, col3 = st.columns(3)
-    # with col1:
-    #     total_area = df_tarefas['Area'].sum()
-    #     formatted_area = f"{total_area:,.0f}".replace(',', '.')
-    #     st.metric("Área Total", f"{formatted_area} ha")
-    # with col2:
-    #     st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
-    # with col3:
-    #     st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
+    # Exibe métricas
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_area = df_tarefas['Area'].sum()
+        formatted_area = f"{total_area:,.0f}".replace(',', '.')
+        st.metric("Área Total", f"{formatted_area} ha")
+    with col2:
+        st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
+    with col3:
+        st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
 
-    # Gráfico de Atividades por Colaborador
-    st.subheader("Atividades por Colaborador")
-    df_contagem_responsavel = df_tarefas.groupby("Colaborador")["Tipo"].count().reset_index()
-    df_contagem_responsavel.columns = ["Colaborador", "Quantidade de Projetos"]
-    df_contagem_responsavel = df_contagem_responsavel.sort_values(by="Quantidade de Projetos", ascending=False)
-    fig_responsavel = px.bar(
-        df_contagem_responsavel,
-        x="Quantidade de Projetos",
-        y="Colaborador",
-        color="Colaborador",
+    st.divider()
+
+    # Layout com 2 colunas e 3 linhas
+    col1, linha, col2 = st.columns([4, 0.5, 4])
+
+    # Linha 1 - Gráficos de Atividades por Colaborador e Projetos por Tipo
+    with col1:
+
+        # Gráfico de Atividades por Colaborador
+        st.subheader("Atividades por Colaborador")
+        df_contagem_responsavel = df_tarefas.groupby("Colaborador")["Tipo"].count().reset_index()
+        df_contagem_responsavel.columns = ["Colaborador", "Quantidade de Projetos"]
+        df_contagem_responsavel = df_contagem_responsavel.sort_values(by="Quantidade de Projetos", ascending=False)
+        fig_responsavel = px.bar(
+            df_contagem_responsavel,
+            x="Quantidade de Projetos",
+            y="Colaborador",
+            color="Colaborador",
+            orientation="h",
+            text="Quantidade de Projetos",
+        )
+        fig_responsavel.update_traces(texttemplate="%{text}", textposition="outside")
+        fig_responsavel.update_layout(
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False)
+        )
+
+        st.plotly_chart(fig_responsavel)
+
+    with col2:
+
+        # Gráfico de Quantidade de Projetos por Tipo
+        st.subheader("Quantidade de Projetos por Tipo")
+        df_contagem_tipo = df_tarefas.groupby("Tipo")["Colaborador"].count().reset_index()
+        df_contagem_tipo.columns = ["Tipo", "Quantidade de Projetos"]
+        df_contagem_tipo = df_contagem_tipo.sort_values(by="Quantidade de Projetos", ascending=False)
+        fig_tipo = px.bar(
+            df_contagem_tipo,
+            x="Tipo",
+            y="Quantidade de Projetos",
+            color="Tipo",
+            text="Quantidade de Projetos",
+        )
+        fig_tipo.update_traces(texttemplate="%{text}", textposition="outside")
+        fig_tipo.update_layout(
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10),
+            yaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
+        )
+        st.plotly_chart(fig_tipo)
+
+    with col1:
+
+        # Gráfico de Status dos Projetos
+        st.subheader("Status dos Projetos")
+        df_contagem_status = df_tarefas.groupby("Status")["Tipo"].count().reset_index()
+        df_contagem_status.columns = ["Status", "Quantidade de Projetos"]
+        df_contagem_status = df_contagem_status.sort_values(by="Quantidade de Projetos", ascending=False)
+        fig_status = px.bar(
+            df_contagem_status,
+            x="Quantidade de Projetos",
+            y="Status",
+            color="Status",
+            orientation="h",
+            text="Quantidade de Projetos",
+        )
+        fig_status.update_traces(texttemplate="%{text}", textposition="outside")
+        fig_status.update_layout(
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
+        )
+        st.plotly_chart(fig_status)
+
+    with col2:
+
+        # Gráfico de Projetos por Unidade
+        st.subheader("Projetos por Unidade")
+        df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
+        df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
+        fig_pizza = px.pie(
+            df_contagem_unidade,
+            names="Unidade",
+            values="Quantidade de Projetos",
+            color="Unidade",
+            hole=0.3,
+            labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
+        )
+        st.plotly_chart(fig_pizza)
+
+    st.divider()
+
+    # Gráfico de Pós-Aplicação
+    st.subheader("Mapas de Pós-Aplicação")
+
+    # Converter DATA para datetime e criar coluna MÊS
+    df_pos["DATA"] = pd.to_datetime(df_pos["DATA"], errors="coerce")
+    df_pos["MÊS"] = df_pos["DATA"].dt.strftime("%B").str.capitalize()
+
+    df_unico = df_pos.drop_duplicates(subset=["MÊS", "SETOR"])
+
+    df_contagem = df_unico.groupby("MÊS").size().reset_index(name="QUANTIDADE")
+
+    # Verificar a estrutura de df_contagem antes de renomear colunas
+    if df_contagem.shape[1] == 2:  
+        df_contagem.columns = ["MÊS", "QUANTIDADE"]
+    else:
+        st.error(f"Erro na contagem de meses: Estrutura inesperada -> {df_contagem.columns}")
+        
+    ordem_meses = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+    fig_mes = px.bar(
+        df_contagem,
+        x="QUANTIDADE",
+        y="MÊS",
+        color="MÊS",
         orientation="h",
-        text="Quantidade de Projetos",
+        text="QUANTIDADE",
+        category_orders={"MÊS": ordem_meses}
     )
-    fig_responsavel.update_traces(texttemplate="%{text}", textposition="outside")
-    fig_responsavel.update_layout(showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-
-    st.plotly_chart(fig_responsavel)
-
-    st.divider()
-
-    # Gráfico de Quantidade de Projetos por Tipo
-    st.subheader("Quantidade de Projetos por Tipo")
-    df_contagem_tipo = df_tarefas.groupby("Tipo")["Colaborador"].count().reset_index()
-    df_contagem_tipo.columns = ["Tipo", "Quantidade de Projetos"]
-    df_contagem_tipo = df_contagem_tipo.sort_values(by="Quantidade de Projetos", ascending=False)
-    fig_tipo = px.bar(
-        df_contagem_tipo,
-        x="Tipo",
-        y="Quantidade de Projetos",
-        color="Tipo",
-        text="Quantidade de Projetos",
+    fig_mes.update_traces(texttemplate="%{text}", textposition="outside")
+    fig_mes.update_layout(
+        showlegend=False,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
     )
-    fig_tipo.update_traces(texttemplate="%{text}", textposition="outside")
-    fig_tipo.update_layout(showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig_tipo)
+    st.plotly_chart(fig_mes)
 
-    st.divider()
-
-    # Gráfico de Status dos Projetos
-    st.subheader("Status dos Projetos")
-    df_contagem_status = df_tarefas.groupby("Status")["Tipo"].count().reset_index()
-    df_contagem_status.columns = ["Status", "Quantidade de Projetos"]
-    df_contagem_status = df_contagem_status.sort_values(by="Quantidade de Projetos", ascending=False)
-    fig_status = px.bar(
-        df_contagem_status,
-        x="Quantidade de Projetos",
-        y="Status",
-        color="Status",
-        orientation="h",
-        text="Quantidade de Projetos",
-    )
-    fig_status.update_traces(texttemplate="%{text}", textposition="outside")
-    fig_status.update_layout(showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig_status)
-
-    st.divider()
-
-    # # Gráfico de Pós-Aplicação
-    # st.subheader("Mapas de Pós-Aplicação")
-    # pos_aplicacao_filtrada = filtrar_pos_aplicacao(pos_aplicacao)
-    # df_unico = pos_aplicacao_filtrada.drop_duplicates(subset=["MÊS", "SETOR"])
-    # df_contagem = df_unico["MÊS"].value_counts().reset_index()
-    # df_contagem.columns = ["MÊS", "QUANTIDADE"]
-    # ordem_meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-    # fig_mes = px.bar(
-    #     df_contagem,
-    #     x="QUANTIDADE",
-    #     y="MÊS",
-    #     color="MÊS",
-    #     orientation="h",
-    #     text="QUANTIDADE",
-    #     category_orders={"MÊS": ordem_meses}
-    # )
-    # fig_mes.update_traces(texttemplate="%{text}", textposition="outside")
-    # fig_mes.update_layout(showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-    # st.plotly_chart(fig_mes)
-
-    st.divider()
-
-    # # Gráfico de Projetos por Unidade
-    # st.subheader("Projetos por Unidade")
-    # df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
-    # df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
-    # fig_pizza = px.pie(
-    #     df_contagem_unidade,
-    #     names="Unidade",
-    #     values="Quantidade de Projetos",
-    #     color="Unidade",
-    #     hole=0.3,
-    #     labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
-    # )
-    # st.plotly_chart(fig_pizza)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+########################################## REGISTRAR ##########################################
 
 # Função para salvar dados
 def salvar_dados(df, caminho):
     df.to_csv(caminho, index=False)
 
 def registrar_atividades():
-    st.title("📝 Registrar Atividades")
+    st.title("📝 Registrar")
 
     # Seleção do tipo de atividade
     tipo_atividade = st.radio(
@@ -213,14 +257,13 @@ def registrar_atividades():
             st.subheader("Atividade Semanal")
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
-            Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"])
-            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC"])
+            Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
+            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"])
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
         if submit:
             nova_tarefa = pd.DataFrame({
-                "Tipo_Atividade": ["Semanal"],
                 "Data": [Data],
                 "Setor": [Setor],
                 "Colaborador": [Colaborador],
@@ -231,7 +274,7 @@ def registrar_atividades():
             if os.path.exists(TAREFAS_PATH):
                 df_tarefas = pd.read_csv(TAREFAS_PATH)
             else:
-                df_tarefas = pd.DataFrame(columns=["Tipo_Atividade", "Data", "Setor", "Colaborador", "Tipo", "Status"])
+                df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
             
             df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
             salvar_dados(df_tarefas, TAREFAS_PATH)
@@ -242,43 +285,33 @@ def registrar_atividades():
         with st.form("form_atividade_extra"):
             st.subheader("Atividade Extra")
             Data = st.date_input("Data")
-            Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"])
+            Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
             Solicitante = st.text_input("Nome do Solicitante")
-            SetorSolicitante = st.selectbox("Setor Solicitante", ["", "Indústria", "Agrícola", "Outro"])
+            SetorSolicitante = st.text_input("Setor Solicitante")
             Atividade = st.selectbox("Atividade", ["", "Impressão de Mapa", "Voo com drone", "Mapa", "Tematização de mapa", "Processamento", "Projeto", "Outro"])
             Horas = st.time_input("Horas de trabalho")
-            Descrição = st.text_input("Descrição")
             submit = st.form_submit_button("Registrar")
 
         if submit:
             nova_tarefa = pd.DataFrame({
-                "Tipo_Atividade": ["Extra"],
                 "Data": [Data],
                 "Colaborador": [Colaborador],
                 "Solicitante": [Solicitante],
                 "SetorSolicitante": [SetorSolicitante],
                 "Atividade": [Atividade],
-                "Horas": [Horas],
-                "Descrição": [Descrição]
+                "Horas": [Horas]
             })
             
             if os.path.exists(EXTRAS_PATH):
                 df_extras = pd.read_csv(EXTRAS_PATH)
             else:
-                df_extras = pd.DataFrame(columns=["Tipo_Atividade", "Data", "Descricao", "Colaborador", "Prioridade"])
+                df_extras = pd.DataFrame(columns=["Data", "Descricao", "Colaborador", "Prioridade"])
             
             df_extras = pd.concat([df_extras, nova_tarefa], ignore_index=True)
             salvar_dados(df_extras, EXTRAS_PATH)
             st.success("Atividade Extra registrada com sucesso!")
 
-
-
-
-
-
-
-
-
+########################################## ATIVIDADES ##########################################
 
 # Função para exibir os projetos como cards clicáveis
 def tarefas_semanais():
@@ -290,7 +323,7 @@ def tarefas_semanais():
     
     filtro_dropdown = st.selectbox(
         "🔍 Selecione uma atividade",
-        options=[""] + list(df_tarefas["Setor"].unique()),  # Dropdown inclui opção vazia
+        options=[""] + sorted(list(df_tarefas["Setor"].unique()), key=int),  # Dropdown inclui opção vazia
         index=0
     )
 
@@ -353,7 +386,7 @@ def tarefas_semanais():
         tarefa = st.session_state["projeto_selecionado"]
 
         # Criar as abas para exibir detalhes ou editar
-        tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"))
+        tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"), key="aba_selecionada")
 
         if tabs == "Detalhes":
             # Exibir detalhes do projeto selecionado
@@ -367,7 +400,7 @@ def tarefas_semanais():
                     box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
                     text-align: left;
                     margin-top: 20px;">
-                    <h3 style="text-align: center;">📄 Detalhes do Projeto</h3>
+                    <h3 style="text-align: center;">📄 Detalhes da Atividade</h3>
                     <strong>Data:</strong> {tarefa['Data']}<br>
                     <strong>Setor:</strong> {tarefa['Setor']}<br>
                     <strong>Colaborador:</strong> {tarefa['Colaborador']}<br>
@@ -380,14 +413,14 @@ def tarefas_semanais():
 
         elif tabs == "Editar":
             # Formulário de edição do projeto
-            st.subheader("Editar Projeto")
+            st.subheader("Editar Atividade")
 
             with st.form(key="edit_form"):
                 # Campos de edição
                 Data = st.date_input("Data", value=datetime.strptime(tarefa["Data"], "%Y-%m-%d"))
                 Setor = st.number_input("Setor", value=tarefa["Setor"], min_value=0, step=1, format="%d")
-                Colaborador = st.selectbox("Colaborador", ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"], index=(["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"].index(tarefa["Colaborador"]) if tarefa["Colaborador"] in ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"] else 0))
-                Tipo = st.selectbox("Tipo", ["Projeto de Sistematização", "Mapa de Sistematização", "LOC"], index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC"].index(tarefa["Tipo"]))
+                Colaborador = st.selectbox("Colaborador", ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], index=(["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]) if tarefa["Colaborador"] in ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"] else 0))
+                Tipo = st.selectbox("Tipo", ["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"], index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
                 Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"], index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
 
                 # Botões de salvar e cancelar
@@ -416,82 +449,50 @@ def tarefas_semanais():
                         st.session_state["editando"] = False
                         st.rerun()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # Página de Tarefas Semanais
-# def tarefas_semanais():
-#     st.title("📅 Tarefas Semanais")
-
-#     # Filtros
-#     st.sidebar.title("Filtros")
-#     responsavel = st.sidebar.selectbox("Responsável", ["Todos"] + list(df_tarefas["Responsável"].unique()))
-#     status = st.sidebar.selectbox("Status", ["Todos"] + list(df_tarefas["Status"].unique()))
-#     prioridade = st.sidebar.selectbox("Prioridade", ["Todos"] + list(df_tarefas["Prioridade"].unique()))
-
-#     # Aplicar filtros
-#     df_filtrado = df_tarefas.copy()
-#     if responsavel != "Todos":
-#         df_filtrado = df_filtrado[df_filtrado["Responsável"] == responsavel]
-#     if status != "Todos":
-#         df_filtrado = df_filtrado[df_filtrado["Status"] == status]
-#     if prioridade != "Todos":
-#         df_filtrado = df_filtrado[df_filtrado["Prioridade"] == prioridade]
-
-#     # Exibir tabela de tarefas
-#     st.write("### Tarefas Filtradas")
-#     st.dataframe(df_filtrado)
-
-#     # Gráficos
-#     st.write("### Gráficos de Tarefas")
-#     col1, col2 = st.columns(2)
-#     with col1:
-#         fig_status = px.pie(df_filtrado, names="Status", title="Distribuição por Status")
-#         st.plotly_chart(fig_status)
-#     with col2:
-#         fig_prioridade = px.pie(df_filtrado, names="Prioridade", title="Distribuição por Prioridade")
-#         st.plotly_chart(fig_prioridade)
+########################################## REFORMA E PASSAGEM ##########################################
 
 # Página de Acompanhamento Reforma e Passagem
 def acompanhamento_reforma_passagem():
     st.title("🌱 Reforma e Passagem")
-    st.write("Aqui você pode visualizar o progresso das reformas e passagens.")
 
     # Exemplo de métricas
     st.write("### Métricas de Reforma")
     col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.metric("Área Total", "1000 m²")
+        paraguacu_area = df_reforma[(df_reforma["UNIDADE"] == "PPT") & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
+        paraguacu_area_formatado = f"{paraguacu_area:,.0f}".replace(",", ".")
+        st.metric("Narandiba", f"{paraguacu_area_formatado} ha")
+
     with col2:
-        st.metric("Área Reformada", "600 m²")
+        narandiba_area = df_reforma[(df_reforma["UNIDADE"] == "NRD") & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
+        narandiba_area_formatado = f"{narandiba_area:,.0f}".replace(",", ".")
+        st.metric("Narandiba", f"{narandiba_area_formatado} ha")
+
     with col3:
-        st.metric("Área Restante", "400 m²")
+        total_area = df_reforma[df_reforma["PLANO"] == "REFORMA PLANO A"]["ÁREA"].sum()
+        total_formatado = f"{total_area:,.0f}".replace(",", ".")
+        st.metric("Total", f"{total_formatado} ha")
 
     st.write("### Métricas de Passagem")
     col1, col2, col3 = st.columns(3)
+
     with col1:
-        st.metric("Área Total", "500 m²")
+        paraguacu_area = df_passagem[df_passagem["UNIDADE"] == "PPT"]["ÁREA"].sum()
+        paraguacu_area_formatado = f"{paraguacu_area:,.0f}".replace(",", ".")
+        st.metric("Narandiba", f"{paraguacu_area_formatado} ha")
+
     with col2:
-        st.metric("Área Concluída", "300 m²")
+        narandiba_area = df_passagem[df_passagem["UNIDADE"] == "NRD"]["ÁREA"].sum()
+        narandiba_area_formatado = f"{narandiba_area:,.0f}".replace(",", ".")
+        st.metric("Narandiba", f"{narandiba_area_formatado} ha")
+
     with col3:
-        st.metric("Área Restante", "200 m²")
+        total_area = df_passagem["ÁREA"].sum()
+        total_formatado = f"{total_area:,.0f}".replace(",", ".")
+        st.metric("Total", f"{total_formatado} ha")
+
+########################################## AUDITORIA ##########################################
 
 # Página de Auditoria
 def auditoria():
@@ -507,24 +508,63 @@ def auditoria():
     fig_auditoria = px.pie(df_auditoria, names="Tipo", values="Quantidade", title="Conformidade vs Não Conformidade")
     st.plotly_chart(fig_auditoria)
 
+########################################## EXTRAS ##########################################
+
 # Página de Atividades Extras
 def atividades_extras():
     st.title("📌 Atividades Extras")
-    st.write("Aqui você pode visualizar as atividades extras realizadas.")
+    global df_extras
+    
+    # Gráfico 1: Quantidade de Atividades por Colaborador
+    col1, linha, col2 = st.columns([4, 0.5, 4])
 
-    # Exemplo de gráficos
-    st.write("### Gráficos de Atividades Extras")
-    df_extras = pd.DataFrame({
-        "Tipo": ["Manutenção", "Melhorias", "Outros"],
-        "Quantidade": [30, 50, 20]
-    })
-    fig_extras = px.bar(df_extras, x="Tipo", y="Quantidade", title="Distribuição de Atividades Extras")
-    st.plotly_chart(fig_extras)
+    with col1:
+        atividade_colab = df_extras.groupby('Colaborador').size().reset_index(name="Quantidade de Atividades")
+        atividade_colab = atividade_colab.sort_values(by="Quantidade de Atividades", ascending=False)
+        fig_colab = px.bar(
+            atividade_colab, 
+            x="Colaborador", 
+            y="Quantidade de Atividades", 
+            title="Atividades por Colaborador",
+            color="Colaborador",  # Colorir as barras por colaborador
+            text="Quantidade de Atividades",  # Adicionar o texto na barra
+        )
+        fig_colab.update_traces(texttemplate="%{text}", textposition="outside")
+        fig_colab.update_layout(
+            showlegend=False,  # Não mostrar a legenda
+            xaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+            yaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
+            title_font_size=24
+        )
+        st.plotly_chart(fig_colab)
+    
+    # Gráfico 2: Quantidade de Atividades por Setor Solicitante
+    with col2:
+        atividade_setor = df_extras.groupby('SetorSolicitante').size().reset_index(name="Quantidade de Atividades")
+        fig_setor = px.pie(
+            atividade_setor, 
+            names="SetorSolicitante", 
+            values="Quantidade de Atividades", 
+            title="Atividades por Setor Solicitante"
+        )
+        # Aumentar o tamanho da fonte do título
+        fig_setor.update_layout(
+            title_font_size=24
+        )
+        fig_setor.update_traces(textinfo="value")  # Mostrar os valores absolutos (quantidade)
+        st.plotly_chart(fig_setor)
+    
+    # Tabela
+    df_extras["Data"] = pd.to_datetime(df_extras["Data"]).dt.strftime("%d/%m/%Y")
+    st.write("### Detalhes das Atividades")
+    atividades_realizadas = df_extras[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
+    st.dataframe(atividades_realizadas, use_container_width=True)
 
 ########################################## PÁGINA PRINCIPAL ##########################################
 
 # Página Principal
 def main_app():
+    
     st.sidebar.image("imagens/logo-cocal.png")
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(

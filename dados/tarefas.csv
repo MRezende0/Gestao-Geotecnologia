@@ -1,3 +1,4 @@
-Data,Setor,Colaborador,Tipo,Status,Tipo_Atividade
-2025-02-05,1051,Ana,LOC,A fazer,
-2025-02-05,1052,Maico,Mapa de Sistematização,Concluído,
+Data,Setor,Colaborador,Tipo,Status
+2025-02-05,1051,Ana,LOC,A validar
+2025-02-10,1,Pedro,Mapa de Sistematização,A validar
+2025-02-10,1,Gustavo,Projeto de Sistematização,Concluído
