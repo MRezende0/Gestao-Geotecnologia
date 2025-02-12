@@ -96,6 +96,10 @@ df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
 
 def dashboard():
     st.title("📊 Dashboard")
+    global df_tarefas
+
+    # Aplicando os filtros e retornando o DataFrame filtrado
+    df_tarefas = filtros_dashboard(df_tarefas)
 
     # Exibe métricas
     col1, col2, col3 = st.columns(3)
@@ -204,11 +208,28 @@ def dashboard():
     # Gráfico de Pós-Aplicação
     st.subheader("Mapas de Pós-Aplicação")
 
+    ordem_meses = ["Todos", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+    # Filtro de Mês
+    mes_selecionado = st.selectbox(
+        "Selecione o Mês",
+        options=ordem_meses,  # Lista de meses ordenados
+        index=0  # Define o primeiro mês como padrão
+    )
+
     # Converter DATA para datetime e criar coluna MÊS
     df_pos["DATA"] = pd.to_datetime(df_pos["DATA"], errors="coerce")
     df_pos["MÊS"] = df_pos["DATA"].dt.strftime("%B").str.capitalize()
 
-    df_unico = df_pos.drop_duplicates(subset=["MÊS", "SETOR"])
+    # Verificar se o filtro "Todos" foi selecionado
+    if mes_selecionado != "Todos":
+        # Filtrar dados para o mês selecionado
+        df_filtrado = df_pos[df_pos["MÊS"] == mes_selecionado]
+    else:
+        # Caso "Todos" seja selecionado, não filtra os dados
+        df_filtrado = df_pos
+
+    df_unico = df_filtrado.drop_duplicates(subset=["MÊS", "SETOR"])
 
     df_contagem = df_unico.groupby("MÊS").size().reset_index(name="QUANTIDADE")
 
@@ -218,8 +239,6 @@ def dashboard():
     else:
         st.error(f"Erro na contagem de meses: Estrutura inesperada -> {df_contagem.columns}")
         
-    ordem_meses = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
     fig_mes = px.bar(
         df_contagem,
         x="QUANTIDADE",
@@ -249,7 +268,7 @@ def registrar_atividades():
     # Seleção do tipo de atividade
     tipo_atividade = st.radio(
         "Selecione o tipo de registro:",
-        ("Atividade Semanal", "Atividade Extra", "Pós-Aplicação", "Auditoria")
+        ("Atividade Semanal", "Atividade Extra", "Reforma e Passagem", "Pós-Aplicação", "Auditoria")
     )
 
     # Formulário para Atividade Semanal
@@ -312,6 +331,48 @@ def registrar_atividades():
             salvar_dados(df_extras, EXTRAS_PATH)
             st.success("Atividade Extra registrada com sucesso!")
 
+    # Formulário para Reforma e Passagem
+    elif tipo_atividade == "Reforma e Passagem":
+
+        # Carregar os dados das abas de Reforma e Passagem
+        df_reforma = carregar_dados(REF_PAS_PATH, aba="Reforma")
+        df_passagem = carregar_dados(REF_PAS_PATH, aba="Passagem")
+
+        # Definir o df_editar antes de usá-lo
+        df_editar = pd.DataFrame()  # Inicializando com um DataFrame vazio
+
+        # Seleção da aba para edição
+        opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Passagem"])
+
+        # Atribuir df_editar corretamente com base na aba selecionada
+        if opcao == "Reforma":
+            df_editar = df_reforma
+        elif opcao == "Passagem":
+            df_editar = df_passagem
+
+        # Exibir o editor de dados baseado na aba selecionada
+        df_editado = st.data_editor(df_editar, num_rows="dynamic")
+
+        # Botão para salvar alterações no Excel
+        if st.button("Salvar Alterações"):
+            if opcao == "Reforma":
+                # Atualizar o df_reforma com os dados editados
+                df_reforma = df_editado
+
+                # Salvar as alterações de volta na aba "Reforma" do arquivo Excel
+                with pd.ExcelWriter(REF_PAS_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                    df_reforma.to_excel(writer, sheet_name="Reforma", index=False)
+                st.success("Dados da aba Reforma atualizados com sucesso!")
+
+            elif opcao == "Passagem":
+                # Atualizar o df_passagem com os dados editados
+                df_passagem = df_editado
+
+                # Salvar as alterações de volta na aba "Passagem" do arquivo Excel
+                with pd.ExcelWriter(REF_PAS_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                    df_passagem.to_excel(writer, sheet_name="Passagem", index=False)
+                st.success("Dados da aba Passagem atualizados com sucesso!")
+
 ########################################## ATIVIDADES ##########################################
 
 # Função para exibir os projetos como cards clicáveis
@@ -321,6 +382,9 @@ def tarefas_semanais():
     # Garantir que os dados sejam carregados corretamente
     global df_tarefas  # Usa a variável global para evitar redefinição local errada
     df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+
+    # Aplicando os filtros e retornando o DataFrame filtrado
+    df_tarefas = filtros_atividades(df_tarefas)
     
     filtro_dropdown = st.selectbox(
         "🔍 Selecione uma atividade",
@@ -454,44 +518,140 @@ def tarefas_semanais():
 
 # Página de Acompanhamento Reforma e Passagem
 def acompanhamento_reforma_passagem():
+
     st.title("🌱 Reforma e Passagem")
 
-    # Exemplo de métricas
+    # Lista d# Lista de categorias e colunas correspondentes no DataFrame
+    categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematização", "LOC", "Pré-Plantio"]
+    colunas = ["Projeto", "Projeto", "APROVADO", "SISTEMATIZAÇÃO", "LOC", "PRE PLANTIO"]
+
+    # Criar um dicionário para armazenar os valores
+    data_reforma = {"Categoria": categorias}
+    data_passagem = {"Categoria": categorias}
+    data = {"Categoria": categorias}
+
+    # Métricas de Reforma
     st.write("### Métricas de Reforma")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        paraguacu_area = df_reforma[(df_reforma["UNIDADE"] == "PPT") & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
-        paraguacu_area_formatado = f"{paraguacu_area:,.0f}".replace(",", ".")
-        st.metric("Narandiba", f"{paraguacu_area_formatado} ha")
 
-    with col2:
-        narandiba_area = df_reforma[(df_reforma["UNIDADE"] == "NRD") & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
-        narandiba_area_formatado = f"{narandiba_area:,.0f}".replace(",", ".")
-        st.metric("Narandiba", f"{narandiba_area_formatado} ha")
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
+        valores_reforma = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_reforma[coluna] == "OK"
+            
+            area_categoria = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A") & filtro]["ÁREA"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_reforma[nome] = valores_reforma
 
-    with col3:
-        total_area = df_reforma[df_reforma["PLANO"] == "REFORMA PLANO A"]["ÁREA"].sum()
-        total_formatado = f"{total_area:,.0f}".replace(",", ".")
-        st.metric("Total", f"{total_formatado} ha")
+    # Calcular a média das porcentagens para cada categoria na tabela de Reforma
+    media_grupo_cocal_reforma = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_reforma["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_reforma["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+        
+        # Formatando a média como porcentagem
+        media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
 
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
+    data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
+
+    # Criar DataFrame para exibição
+    df_metrica_reforma = pd.DataFrame(data_reforma)
+
+    # Exibir tabela no Streamlit
+    st.dataframe(df_metrica_reforma, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Métricas de Passagem
     st.write("### Métricas de Passagem")
-    col1, col2, col3 = st.columns(3)
+
+    # Resetar o dicionário para a tabela de Passagem
+    data_passagem = {"Categoria": categorias}
+
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_passagem[(df_passagem["UNIDADE"] == unidade)]["ÁREA"].sum()
+        valores_passagem = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_passagem["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_passagem[coluna] == "OK"
+            
+            area_categoria = df_passagem[(df_passagem["UNIDADE"] == unidade) & filtro]["ÁREA"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_passagem.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_passagem[nome] = valores_passagem
+
+    # Calcular a média das porcentagens para cada categoria na tabela de Passagem
+    media_grupo_cocal_passagem = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_passagem["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_passagem["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+        
+        # Formatando a média como porcentagem
+        media_grupo_cocal_passagem.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Passagem
+    data_passagem["Grupo Cocal"] = media_grupo_cocal_passagem
+
+    # Criar DataFrame para exibição
+    df_metrica_passagem = pd.DataFrame(data_passagem)
+
+    # Exibir tabela no Streamlit
+    st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Divide a tela em 3 colunas
+    col1, col2 = st.columns(2)
 
     with col1:
-        paraguacu_area = df_passagem[df_passagem["UNIDADE"] == "PPT"]["ÁREA"].sum()
-        paraguacu_area_formatado = f"{paraguacu_area:,.0f}".replace(",", ".")
-        st.metric("Narandiba", f"{paraguacu_area_formatado} ha")
+        # Criando opções de seleção para visualizar os dados
+        opcao_tipo = st.selectbox("Selecione o tipo de acompanhamento:", ["Reforma", "Passagem"])
 
     with col2:
-        narandiba_area = df_passagem[df_passagem["UNIDADE"] == "NRD"]["ÁREA"].sum()
-        narandiba_area_formatado = f"{narandiba_area:,.0f}".replace(",", ".")
-        st.metric("Narandiba", f"{narandiba_area_formatado} ha")
+        opcao_visualizacao = st.selectbox("Selecione a unidade:", ["Grupo Cocal", "Paraguaçu", "Narandiba"])
 
-    with col3:
-        total_area = df_passagem["ÁREA"].sum()
-        total_formatado = f"{total_area:,.0f}".replace(",", ".")
-        st.metric("Total", f"{total_formatado} ha")
+    # Escolher qual DataFrame usar com base na seleção
+    if opcao_tipo == "Reforma":
+        df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
+    else:
+        df_selecionado = df_metrica_passagem[["Categoria", opcao_visualizacao]]
+
+    df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
+
+    # Convertendo os valores de string para número
+    df_selecionado["Porcentagem"] = df_selecionado["Porcentagem"].str.replace("%", "").str.replace(",", ".").astype(float)
+
+    # Criando o gráfico dinâmico
+    fig = px.bar(
+        df_selecionado,
+        x="Porcentagem",
+        y="Categoria",
+        orientation="h",
+        text="Porcentagem",
+        labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
+    )
+
+    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition="outside")
+
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(range=[0, 105], showgrid=True, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
+        yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+    )
+
+    # Exibir o gráfico dinâmico no Streamlit
+    st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
+    st.plotly_chart(fig)
 
 ########################################## AUDITORIA ##########################################
 
@@ -515,6 +675,9 @@ def auditoria():
 def atividades_extras():
     st.title("📌 Atividades Extras")
     global df_extras
+
+    # Aplicando os filtros e retornando o DataFrame filtrado
+    df_extras = filtros_extras(df_extras)
     
     # Gráfico 1: Quantidade de Atividades por Colaborador
     col1, linha, col2 = st.columns([4, 0.5, 4])
@@ -559,7 +722,176 @@ def atividades_extras():
     df_extras["Data"] = pd.to_datetime(df_extras["Data"]).dt.strftime("%d/%m/%Y")
     st.write("### Detalhes das Atividades")
     atividades_realizadas = df_extras[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
-    st.dataframe(atividades_realizadas, use_container_width=True)
+    st.dataframe(atividades_realizadas, use_container_width=True, hide_index=True)
+
+########################################## FILTROS ##########################################
+
+# Função para filtros da aba Dashboard
+def filtros_dashboard(df_tarefas):
+
+    st.sidebar.title("Filtros")
+
+    # Filtro de Data
+    # Garantir que a coluna "Data" está em formato datetime
+    df_tarefas["Data"] = pd.to_datetime(df_tarefas["Data"], errors='coerce')
+
+    # Definindo o intervalo de datas
+    data_min = df_tarefas["Data"].min().date()  # Convertendo para date
+    data_max = df_tarefas["Data"].max().date()  # Convertendo para date
+    
+    # Barra deslizante para selecionar o intervalo de datas
+    data_inicio, data_fim = st.sidebar.slider(
+        "Intervalo de datas",
+        min_value=data_min,
+        max_value=data_max,
+        value=(data_min, data_max),
+        format="DD/MM/YYYY"
+    )
+
+    # Convertendo novamente para datetime para aplicar no filtro
+    data_inicio = pd.to_datetime(data_inicio)
+    data_fim = pd.to_datetime(data_fim)
+
+    # Filtrando o DataFrame com base nas datas selecionadas
+    df_tarefas = df_tarefas[(df_tarefas["Data"] >= data_inicio) & 
+                                   (df_tarefas["Data"] <= data_fim)]
+    
+    # Filtro de Colaborador
+    colaboradores_unicos = df_tarefas["Colaborador"].unique()  # Obter a lista de colaboradores únicos
+    colaboradores_unicos = ["Todos"] + list(colaboradores_unicos)  # Adiciona a opção "Todos"
+    
+    # Selecionando apenas "Todos" inicialmente
+    colaboradores_selecionados = st.sidebar.multiselect(
+        "Colaboradores",
+        options=colaboradores_unicos,
+        default=["Todos"]  # Seleciona apenas "Todos" por padrão
+    )
+
+        # Filtro de Tipo com opção de "Todos"
+    tipos_unicos = df_tarefas["Tipo"].unique()  # Obter a lista de tipos únicos
+    tipos_unicos = ["Todos"] + list(tipos_unicos)  # Adiciona a opção "Todos"
+    
+    # Selecionando apenas "Todos" inicialmente
+    tipos_selecionados = st.sidebar.multiselect(
+        "Tipos de Atividade",
+        options=tipos_unicos,
+        default=["Todos"]  # Seleciona apenas "Todos" por padrão
+    )
+
+    # Filtrando o DataFrame com base no(s) colaborador(es) selecionado(s)
+    if "Todos" in colaboradores_selecionados:
+        # Se "Todos" estiver selecionado, não filtra por colaborador
+        df_tarefas = df_tarefas
+    else:
+        df_tarefas = df_tarefas[df_tarefas["Colaborador"].isin(colaboradores_selecionados)]
+    
+    # Filtrando o DataFrame com base no(s) tipo(s) selecionado(s)
+    if "Todos" in tipos_selecionados:
+        # Se "Todos" estiver selecionado, não filtra por tipo
+        df_tarefas = df_tarefas
+    else:
+        df_tarefas = df_tarefas[df_tarefas["Tipo"].isin(tipos_selecionados)]
+
+    return df_tarefas
+
+# Função para filtros da aba Dashboard
+def filtros_atividades(df_tarefas):
+
+    st.sidebar.title("Filtros")
+
+    # Filtro de Data
+    # Garantir que a coluna "Data" está em formato datetime
+    df_tarefas["Data"] = pd.to_datetime(df_tarefas["Data"], errors='coerce')
+
+    # Definindo o intervalo de datas
+    data_min = df_tarefas["Data"].min().date()  # Convertendo para date
+    data_max = df_tarefas["Data"].max().date()  # Convertendo para date
+    
+    # Barra deslizante para selecionar o intervalo de datas
+    data_inicio, data_fim = st.sidebar.slider(
+        "Intervalo de datas",
+        min_value=data_min,
+        max_value=data_max,
+        value=(data_min, data_max),
+        format="DD/MM/YYYY"
+    )
+
+    # Convertendo novamente para datetime para aplicar no filtro
+    data_inicio = pd.to_datetime(data_inicio)
+    data_fim = pd.to_datetime(data_fim)
+
+    # Filtrando o DataFrame com base nas datas selecionadas
+    df_tarefas = df_tarefas[(df_tarefas["Data"] >= data_inicio) & 
+                                   (df_tarefas["Data"] <= data_fim)]
+    
+    # Filtro de Colaborador
+    colaboradores_unicos = df_tarefas["Colaborador"].unique()  # Obter a lista de colaboradores únicos
+    colaboradores_unicos = ["Todos"] + list(colaboradores_unicos)  # Adiciona a opção "Todos"
+    
+    # Selecionando apenas "Todos" inicialmente
+    colaboradores_selecionados = st.sidebar.multiselect(
+        "Colaboradores",
+        options=colaboradores_unicos,
+        default=["Todos"]  # Seleciona apenas "Todos" por padrão
+    )
+
+        # Filtro de Tipo com opção de "Todos"
+    tipos_unicos = df_tarefas["Tipo"].unique()  # Obter a lista de tipos únicos
+    tipos_unicos = ["Todos"] + list(tipos_unicos)  # Adiciona a opção "Todos"
+    
+    # Selecionando apenas "Todos" inicialmente
+    tipos_selecionados = st.sidebar.multiselect(
+        "Tipos de Atividade",
+        options=tipos_unicos,
+        default=["Todos"]  # Seleciona apenas "Todos" por padrão
+    )
+
+    # Filtrando o DataFrame com base no(s) colaborador(es) selecionado(s)
+    if "Todos" in colaboradores_selecionados:
+        # Se "Todos" estiver selecionado, não filtra por colaborador
+        df_tarefas = df_tarefas
+    else:
+        df_tarefas = df_tarefas[df_tarefas["Colaborador"].isin(colaboradores_selecionados)]
+    
+    # Filtrando o DataFrame com base no(s) tipo(s) selecionado(s)
+    if "Todos" in tipos_selecionados:
+        # Se "Todos" estiver selecionado, não filtra por tipo
+        df_tarefas = df_tarefas
+    else:
+        df_tarefas = df_tarefas[df_tarefas["Tipo"].isin(tipos_selecionados)]
+
+    return df_tarefas
+
+# Função para filtros da aba Extras
+def filtros_extras(df_extras):
+
+    st.sidebar.title("Filtros")
+
+    # Garantir que a coluna "Data" está em formato datetime
+    df_extras["Data"] = pd.to_datetime(df_extras["Data"], errors='coerce')
+
+    # Definindo o intervalo de datas
+    data_min = df_extras["Data"].min().date()  # Convertendo para date
+    data_max = df_extras["Data"].max().date()  # Convertendo para date
+    
+    # Barra deslizante para selecionar o intervalo de datas
+    data_inicio, data_fim = st.sidebar.slider(
+        "Selecione o intervalo de datas",
+        min_value=data_min,
+        max_value=data_max,
+        value=(data_min, data_max),
+        format="DD/MM/YYYY"
+    )
+
+    # Convertendo novamente para datetime para aplicar no filtro
+    data_inicio = pd.to_datetime(data_inicio)
+    data_fim = pd.to_datetime(data_fim)
+
+    # Filtrando o DataFrame com base nas datas selecionadas
+    df_extras = df_extras[(df_extras["Data"] >= data_inicio) & 
+                                   (df_extras["Data"] <= data_fim)]
+    
+    return df_extras
 
 ########################################## PÁGINA PRINCIPAL ##########################################
 
