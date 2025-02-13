@@ -60,6 +60,7 @@ TAREFAS_PATH = "dados/tarefas.csv"
 EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
 REF_PAS_PATH = "dados/reforma_passagem.xlsx"
+AUDITORIA_PATH = "dados/auditoria.csv"
 
 # Função para carregar dados de CSV ou Excel
 def carregar_dados(caminho, colunas=None, aba=None):
@@ -88,6 +89,13 @@ df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
 df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
 df_extras = carregar_dados(EXTRAS_PATH, ["Data", "Colaborador", "Solicitante", "SetorSolicitante", "Atividade", "Horas", "Descrição"])
 df_ref_pas = carregar_dados(REF_PAS_PATH, [""])
+df_auditoria = carregar_dados(AUDITORIA_PATH, [
+    "Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", 
+    "TipoTerraco_Planejado", "TipoTerraco_Executado", "QuantidadeTerraco_Planejado", "QuantidadeTerraco_Executado", 
+    "Levantes_Planejado", "Levantes_Executado", "LevantesDesmanche_Planejado", "LevantesDesmanche_Executado", 
+    "Bigodes_Planejado", "Bigodes_Executado", "BigodesDesmanche_Planejado", "BigodesDesmanche_Executado", 
+    "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
+])
 
 # Mesclar bases de dados
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
@@ -373,6 +381,77 @@ def registrar_atividades():
                     df_passagem.to_excel(writer, sheet_name="Passagem", index=False)
                 st.success("Dados da aba Passagem atualizados com sucesso!")
 
+    # Formulário para Auditoria
+    elif tipo_atividade == "Auditoria":
+        with st.form("form_auditoria"):
+            st.subheader("Auditoria")
+            Data = st.date_input("Auditoria referente à")
+            Auditores = st.multiselect("Auditores", ["Camila", "Guilherme", "Maico", "Sebastião", "Willian"])
+            Unidade = st.selectbox("Unidade", ["", "Paraguaçu", "Narandiba"])
+            Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
+            TipoPlantio_Planejado = st.selectbox("Tipo de Plantio Planejado", ["", "ESD", "Convencional", "ESD e Convencional"])
+            TipoPlantio_Executado = st.selectbox("Tipo de Plantio Executado", ["", "ESD", "Convencional", "ESD e Convencional"])
+            TipoTerraco_Planejado = st.selectbox("Tipo de Terraço Planejado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
+            TipoTerraco_Executado = st.selectbox("Tipo de Terraço Executado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
+            QuantidadeTerraco_Planejado = st.selectbox("Quantidade de Terraços Planejado", ["", "Ok", "Não"])
+            QuantidadeTerraco_Executado = st.selectbox("Quantidade de Terraços Executado", ["", "Ok", "Não"])
+            Levantes_Planejado = st.number_input("Levantes Planejado", min_value=0, step=1)
+            Levantes_Executado = st.number_input("Levantes Executado", min_value=0, step=1)
+            LevantesDesmanche_Planejado = st.number_input("Levantes Desmanche Planejado", min_value=0, step=1)
+            LevantesDesmanche_Executado = st.number_input("Levantes Desmanche Executado", min_value=0, step=1)
+            Bigodes_Planejado = st.number_input("Bigodes Planejado", min_value=0, step=1)
+            Bigodes_Executado = st.number_input("Bigodes Executado", min_value=0, step=1)
+            BigodesDesmanche_Planejado = st.number_input("Bigodes Desmanche Planejado", min_value=0, step=1)
+            BigodesDesmanche_Executado = st.number_input("Bigodes Desmanche Executado", min_value=0, step=1)
+            Carreadores_Planejado = st.selectbox("Carreadores Planejado", ["", "Ok", "Não"])
+            Carreadores_Executado = st.selectbox("Carreadores Executado", ["", "Ok", "Não"])
+            Patios_Projetado = st.number_input("Pátios Projetado", min_value=0, step=1)
+            Patios_Executado = st.number_input("Pátios Executado", min_value=0, step=1)
+            Observacao = st.text_area("Observação")
+            submit = st.form_submit_button("Registrar")
+
+        if submit:
+            nova_auditoria = pd.DataFrame({
+                "Data": [Data],
+                "Auditores": [Auditores],
+                "Unidade": [Unidade],
+                "Setor": [Setor],
+                "TipoPlantio_Planejado": [TipoPlantio_Planejado],
+                "TipoPlantio_Executado": [TipoPlantio_Executado],
+                "TipoTerraco_Planejado": [TipoTerraco_Planejado],
+                "TipoTerraco_Executado": [TipoTerraco_Executado],
+                "QuantidadeTerraco_Planejado": [QuantidadeTerraco_Planejado],
+                "QuantidadeTerraco_Executado": [QuantidadeTerraco_Executado],
+                "Levantes_Planejado": [Levantes_Planejado],
+                "Levantes_Executado": [Levantes_Executado],
+                "LevantesDesmanche_Planejado": [LevantesDesmanche_Planejado],
+                "LevantesDesmanche_Executado": [LevantesDesmanche_Executado],
+                "Bigodes_Planejado": [Bigodes_Planejado],
+                "Bigodes_Executado": [Bigodes_Executado],
+                "BigodesDesmanche_Planejado": [BigodesDesmanche_Planejado],
+                "BigodesDesmanche_Executado": [BigodesDesmanche_Executado],
+                "Carreadores_Planejado": [Carreadores_Planejado],
+                "Carreadores_Executado": [Carreadores_Executado],
+                "Patios_Projetado": [Patios_Projetado],
+                "Patios_Executado": [Patios_Executado],
+                "Observacao": [Observacao]
+            })
+
+            if os.path.exists(AUDITORIA_PATH):
+                df_auditoria = pd.read_csv(AUDITORIA_PATH)
+            else:
+                df_auditoria = pd.DataFrame(columns=[
+                    "Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", 
+                    "TipoTerraco_Planejado", "TipoTerraco_Executado", "QuantidadeTerraco_Planejado", "QuantidadeTerraco_Executado", 
+                    "Levantes_Planejado", "Levantes_Executado", "LevantesDesmanche_Planejado", "LevantesDesmanche_Executado", 
+                    "Bigodes_Planejado", "Bigodes_Executado", "BigodesDesmanche_Planejado", "BigodesDesmanche_Executado", 
+                    "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
+                ])
+
+            df_auditoria = pd.concat([df_auditoria, nova_auditoria], ignore_index=True)
+            salvar_dados(df_auditoria, AUDITORIA_PATH)
+            st.success("Auditoria registrada com sucesso!")
+
 ########################################## ATIVIDADES ##########################################
 
 # Função para exibir os projetos como cards clicáveis
@@ -530,8 +609,7 @@ def acompanhamento_reforma_passagem():
     data_passagem = {"Categoria": categorias}
     data = {"Categoria": categorias}
 
-    # Métricas de Reforma
-    st.write("### Métricas de Reforma")
+######################## REFORMA ########################
 
     for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
         unidade_area = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
@@ -563,13 +641,7 @@ def acompanhamento_reforma_passagem():
     # Criar DataFrame para exibição
     df_metrica_reforma = pd.DataFrame(data_reforma)
 
-    # Exibir tabela no Streamlit
-    st.dataframe(df_metrica_reforma, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # Métricas de Passagem
-    st.write("### Métricas de Passagem")
+######################## PASSAGEM ########################
 
     # Resetar o dicionário para a tabela de Passagem
     data_passagem = {"Categoria": categorias}
@@ -604,10 +676,7 @@ def acompanhamento_reforma_passagem():
     # Criar DataFrame para exibição
     df_metrica_passagem = pd.DataFrame(data_passagem)
 
-    # Exibir tabela no Streamlit
-    st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
-
-    st.divider()
+######################## GRÁFICO ########################
 
     # Divide a tela em 3 colunas
     col1, col2 = st.columns(2)
@@ -653,6 +722,20 @@ def acompanhamento_reforma_passagem():
     st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
     st.plotly_chart(fig)
 
+######################## TABELAS ########################
+
+    st.divider()
+
+    # Métricas de Reforma
+    st.write("### Métricas de Reforma")
+    st.dataframe(df_metrica_reforma, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Métricas de Passagem
+    st.write("### Métricas de Passagem")
+    st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
+
 ########################################## AUDITORIA ##########################################
 
 # Página de Auditoria
@@ -668,6 +751,36 @@ def auditoria():
     })
     fig_auditoria = px.pie(df_auditoria, names="Tipo", values="Quantidade", title="Conformidade vs Não Conformidade")
     st.plotly_chart(fig_auditoria)
+
+    df_auditoria["Aderência (%)"] = df_auditoria.apply(calcular_aderencia, axis=1)
+
+    # Criar gráfico
+    fig = px.bar(df_auditoria, x="Categoria", y="Aderência (%)", text="Aderência (%)",
+                title="Aderência por Categoria", color="Aderência (%)",
+                color_continuous_scale="Viridis")
+    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+
+    # Exibir no Streamlit
+    st.title("📊 Aderência de Auditoria")
+    st.plotly_chart(fig)
+
+# Cálculo das porcentagens
+def calcular_aderencia(row):
+    if isinstance(row["Planejado"], (int, float)) and isinstance(row["Executado"], (int, float)):
+        return (row["Executado"] / row["Planejado"]) * 100 if row["Planejado"] > 0 else 100
+    return 100 if row["Planejado"] == row["Executado"] else 0
+
+df_auditoria["Aderência (%)"] = df_auditoria.apply(calcular_aderencia, axis=1)
+
+# Criar gráfico
+fig = px.bar(df_auditoria, x="Categoria", y="Aderência (%)", text="Aderência (%)",
+             title="Aderência por Categoria", color="Aderência (%)",
+             color_continuous_scale="Viridis")
+fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+
+# Exibir no Streamlit
+st.title("📊 Aderência de Auditoria")
+st.plotly_chart(fig)
 
 ########################################## EXTRAS ##########################################
 
