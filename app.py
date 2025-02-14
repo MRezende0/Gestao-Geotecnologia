@@ -764,24 +764,6 @@ def auditoria():
     st.title("📊 Aderência de Auditoria")
     st.plotly_chart(fig)
 
-    # # Cálculo das porcentagens
-    # def calcular_aderencia(row):
-    #     if isinstance(row["Planejado"], (int, float)) and isinstance(row["Executado"], (int, float)):
-    #         return (row["Executado"] / row["Planejado"]) * 100 if row["Planejado"] > 0 else 100
-    #     return 100 if row["Planejado"] == row["Executado"] else 0
-
-    # df_auditoria["Aderência (%)"] = df_auditoria.apply(calcular_aderencia, axis=1)
-
-    # # Criar gráfico
-    # fig = px.bar(df_auditoria, x="Categoria", y="Aderência (%)", text="Aderência (%)",
-    #             title="Aderência por Categoria", color="Aderência (%)",
-    #             color_continuous_scale="Viridis")
-    # fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-
-    # # Exibir no Streamlit
-    # st.title("📊 Aderência de Auditoria")
-    # st.plotly_chart(fig)
-
 ########################################## EXTRAS ##########################################
 
 # Página de Atividades Extras
