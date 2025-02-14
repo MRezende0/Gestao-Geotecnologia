@@ -561,7 +561,8 @@ def tarefas_semanais():
 
             with st.form(key="edit_form"):
                 # Campos de edição
-                Data = st.date_input("Data", value=datetime.strptime(tarefa["Data"], "%Y-%m-%d"))
+                # Data = st.date_input("Data", value=datetime.strptime(tarefa["Data"], "%Y-%m-%d"))
+                Data = st.date_input("Data", value=tarefa["Data"].date() if isinstance(tarefa["Data"], pd.Timestamp) else datetime.strptime(tarefa["Data"], "%Y-%m-%d").date())
                 Setor = st.number_input("Setor", value=tarefa["Setor"], min_value=0, step=1, format="%d")
                 Colaborador = st.selectbox("Colaborador", ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], index=(["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]) if tarefa["Colaborador"] in ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"] else 0))
                 Tipo = st.selectbox("Tipo", ["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"], index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
@@ -833,6 +834,10 @@ def filtros_dashboard(df_tarefas):
     # Definindo o intervalo de datas
     data_min = df_tarefas["Data"].min().date()  # Convertendo para date
     data_max = df_tarefas["Data"].max().date()  # Convertendo para date
+
+    # Se as datas forem iguais, adiciona um dia a `data_max`
+    if data_min == data_max:
+        data_max = data_max + pd.Timedelta(days=1)
     
     # Barra deslizante para selecionar o intervalo de datas
     data_inicio, data_fim = st.sidebar.slider(
@@ -849,7 +854,7 @@ def filtros_dashboard(df_tarefas):
 
     # Filtrando o DataFrame com base nas datas selecionadas
     df_tarefas = df_tarefas[(df_tarefas["Data"] >= data_inicio) & 
-                                   (df_tarefas["Data"] <= data_fim)]
+                            (df_tarefas["Data"] <= data_fim)]
     
     # Filtro de Colaborador
     colaboradores_unicos = df_tarefas["Colaborador"].unique()  # Obter a lista de colaboradores únicos
