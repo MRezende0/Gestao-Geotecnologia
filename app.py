@@ -5,6 +5,7 @@ import os
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 import openpyxl
+import numpy as np
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -561,8 +562,8 @@ def tarefas_semanais():
 
             with st.form(key="edit_form"):
                 # Campos de edição
-                # Data = st.date_input("Data", value=datetime.strptime(tarefa["Data"], "%Y-%m-%d"))
-                Data = st.date_input("Data", value=tarefa["Data"].date() if isinstance(tarefa["Data"], pd.Timestamp) else datetime.strptime(tarefa["Data"], "%Y-%m-%d").date())
+                # Data = st.date_input("Data", value=tarefa["Data"].date() if isinstance(tarefa["Data"], pd.Timestamp) else datetime.strptime(tarefa["Data"], "%Y-%m-%d").date())
+                Data = st.date_input("Data", value=datetime.today().date())
                 Setor = st.number_input("Setor", value=tarefa["Setor"], min_value=0, step=1, format="%d")
                 Colaborador = st.selectbox("Colaborador", ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], index=(["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]) if tarefa["Colaborador"] in ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"] else 0))
                 Tipo = st.selectbox("Tipo", ["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"], index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
@@ -739,31 +740,111 @@ def acompanhamento_reforma_passagem():
 
 ########################################## AUDITORIA ##########################################
 
+# Função para calcular a aderência
+def calcular_aderencia(planejado, executado):
+    try:
+        # Converte para float
+        planejado = float(planejado)
+        executado = float(executado)
+
+        # Se ambos forem 0, a aderência é 100%
+        if planejado == 0 and executado == 0:
+            return 100
+        
+        # Se apenas um for 0, aderência é 0%
+        if planejado == 0 or executado == 0:
+            return 0
+
+        # Divide o menor pelo maior e multiplica por 100
+        menor = min(planejado, executado)
+        maior = max(planejado, executado)
+        return (menor / maior) * 100
+    
+    except ValueError:
+        # Se não forem numéricos, retorna 100% se forem iguais, senão 0%
+        return 100 if str(planejado).strip().lower() == str(executado).strip().lower() else 0
+
 # Página de Auditoria
 def auditoria():
     st.title("🔍 Auditoria")
-    st.write("Aqui você pode visualizar os dados de auditoria.")
+    global df_auditoria
 
-    # Exemplo de gráficos
-    st.write("### Gráficos de Auditoria")
-    df_auditoria = pd.DataFrame({
-        "Tipo": ["Conformidade", "Não Conformidade"],
-        "Quantidade": [80, 20]
-    })
-    fig_auditoria = px.pie(df_auditoria, names="Tipo", values="Quantidade", title="Conformidade vs Não Conformidade")
-    st.plotly_chart(fig_auditoria)
+    # Aplicando os filtros e retornando o DataFrame filtrado
+    df_auditoria = filtros_auditoria(df_auditoria)
 
-    df_auditoria["Aderência (%)"] = df_auditoria.apply(calcular_aderencia, axis=1)
+    # Criar novas colunas de aderência para o DataFrame filtrado
+    colunas_planejado = [col for col in df_auditoria.columns if "_Planejado" in col]
+    colunas_executado = [col.replace("_Planejado", "_Executado") for col in colunas_planejado]
 
-    # Criar gráfico
-    fig = px.bar(df_auditoria, x="Categoria", y="Aderência (%)", text="Aderência (%)",
-                title="Aderência por Categoria", color="Aderência (%)",
-                color_continuous_scale="Viridis")
-    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    # Aplicar a função calcular_aderencia para cada linha do DataFrame filtrado
+    for planejado, executado in zip(colunas_planejado, colunas_executado):
+        df_auditoria[f"Aderência_{planejado.replace('_Planejado', '')}"] = df_auditoria.apply(
+            lambda row: calcular_aderencia(row[planejado], row[executado]), axis=1
+        )
 
-    # Exibir no Streamlit
-    st.title("📊 Aderência de Auditoria")
-    st.plotly_chart(fig)
+    # Criar tabela formatada
+    colunas_tabela = ["Unidade", "Setor"] + colunas_planejado + colunas_executado + [f"Aderência_{col.replace('_Planejado', '')}" for col in colunas_planejado]
+    df_tabela = df_auditoria[colunas_tabela]
+
+    # Identificar colunas numéricas e formatá-las corretamente
+    colunas_numericas = df_tabela.select_dtypes(include=["number"]).columns
+
+    # Formatar os valores numéricos diretamente no DataFrame
+    for col in colunas_numericas:
+        df_tabela[col] = df_tabela[col].apply(lambda x: f"{x:.0f}")
+
+    # Calcular a média de cada item de aderência (como "Aderência_Levantes", "Aderência_Bigodes", etc.)
+    colunas_aderencia = [col for col in df_auditoria.columns if "Aderência" in col]  # Obter todas as colunas de aderência
+
+    # Calcular a média de cada item (linha a linha) e armazenar no formato desejado
+    df_media_itens = df_auditoria[colunas_aderencia].mean().reset_index()
+    df_media_itens.columns = ["Item", "Média Aderência (%)"]  # Renomear as colunas para facilitar a leitura
+
+    # Dicionário para renomear os itens (exemplo, ajustando conforme necessário)
+    renomear_itens = {
+        "Aderência_Levantes": "Levantes",
+        "Aderência_Bigodes": "Bigodes",
+        "Aderência_TipoPlantio": "Tipo de plantio",
+        "Aderência_TipoTerraco": "Tipo de terraço",
+        "Aderência_QuantidadeTerraco": "Quantidade de terraço",
+        "Aderência_LevantesDesmanche": "Levantes para desmanche",
+        "Aderência_BigodesDesmanche": "Bigodes para desmanche",
+        "Aderência_Carreadores": "Carreadores"
+    }
+
+    # Renomear os itens de acordo com o dicionário
+    df_media_itens["Item"] = df_media_itens["Item"].map(renomear_itens).fillna(df_media_itens["Item"])
+
+    # Criar gráfico de barras horizontais com a média de cada item
+    fig_aderencia = px.bar(df_media_itens, 
+                        x="Item",                 # Eixo Y com os itens de aderência
+                        y="Média Aderência (%)",  # Eixo X com as médias de aderência
+                        text="Média Aderência (%)",
+                        orientation="v",         # "h" para barras horizontais
+                        color="Item",             # Cor única para cada barra
+                        color_discrete_sequence=px.colors.qualitative.Set1,  # Lista de cores distintas
+                        )  # Remover título do eixo X
+
+    # Ajustar a posição do rótulo para fora da barra
+    fig_aderencia.update_traces(textposition='outside')
+
+    # Ajustar os valores no gráfico para mostrar sem casas decimais
+    fig_aderencia.update_traces(texttemplate='%{text:.0f}%')
+
+    fig_aderencia.update_layout(
+        showlegend=False,  # Não mostrar a legenda
+        xaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+        yaxis=dict(showgrid=False, showticklabels=False, showline=False, zeroline=False))
+
+    # Exibir gráfico
+    st.write("### Aderência")
+    st.plotly_chart(fig_aderencia)
+
+    st.divider()
+
+    # Exibir tabela formatada
+    st.write("### Planejado x Executado")
+    st.dataframe(df_tabela)
 
 ########################################## EXTRAS ##########################################
 
@@ -992,6 +1073,53 @@ def filtros_extras(df_extras):
                                    (df_extras["Data"] <= data_fim)]
     
     return df_extras
+
+# Função para filtros da aba Auditoria
+def filtros_auditoria(df_auditoria):
+    st.sidebar.title("Filtros")
+
+    # Filtro de Data - Mês e Ano
+    # Garantir que a coluna "Data" está em formato datetime
+    df_auditoria["Data"] = pd.to_datetime(df_auditoria["Data"], errors='coerce')
+
+    # Extraindo ano e mês para um filtro de seleção
+    df_auditoria['Ano_Mes'] = df_auditoria["Data"].dt.to_period('M')
+
+    # Lista de Ano-Mês únicos
+    anos_mes_unicos = df_auditoria['Ano_Mes'].unique()
+    anos_mes_unicos = sorted(anos_mes_unicos, reverse=True)  # Ordenando do mais recente para o mais antigo
+
+    # Adicionando a opção de "Todos os dados"
+    anos_mes_unicos = ["Todos os dados"] + list(anos_mes_unicos)
+
+    # Barra de seleção para escolher o ano e mês
+    ano_mes_selecionado = st.sidebar.selectbox(
+        "Selecione o Mês e Ano",
+        options=anos_mes_unicos,
+        format_func=lambda x: x.strftime('%m/%Y') if isinstance(x, pd.Period) else x  # Exibindo o formato mês/ano
+    )
+
+    # Filtrando o DataFrame com base no mês e ano selecionados
+    if ano_mes_selecionado != "Todos os dados":
+        df_auditoria = df_auditoria[df_auditoria['Ano_Mes'] == ano_mes_selecionado]
+
+    # Filtro de Setor - Seleção de apenas 1 setor por vez
+    setores_unicos = df_auditoria["Setor"].unique()  # Obter a lista de setores únicos
+    setores_unicos = sorted(set(setores_unicos))  # Ordenando os setores do menor para o maior
+    setores_unicos = ["Selecione o setor"] + list(setores_unicos)  # Adiciona a opção de "Selecione o setor"
+    
+    # Seleção do setor
+    setor_selecionado = st.sidebar.selectbox(
+        "Selecione o Setor",
+        options=setores_unicos,
+        index=0  # Definindo como padrão a opção "Selecione o setor"
+    )
+
+    # Filtrando o DataFrame com base no setor selecionado
+    if setor_selecionado != "Selecione o setor":
+        df_auditoria = df_auditoria[df_auditoria["Setor"] == setor_selecionado]
+
+    return df_auditoria
 
 ########################################## PÁGINA PRINCIPAL ##########################################
 

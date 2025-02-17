@@ -1,1 +1,10 @@
 Data,Auditores,Unidade,Setor,TipoPlantio_Planejado,TipoPlantio_Executado,TipoTerraco_Planejado,TipoTerraco_Executado,QuantidadeTerraco_Planejado,QuantidadeTerraco_Executado,Levantes_Planejado,Levantes_Executado,LevantesDesmanche_Planejado,LevantesDesmanche_Executado,Bigodes_Planejado,Bigodes_Executado,BigodesDesmanche_Planejado,BigodesDesmanche_Executado,Carreadores_Planejado,Carreadores_Executado,Patios_Projetado,Patios_Executado,Observacao
+2024-06-01,"['Camila', 'Sebastião', 'Guilherme']",Paraguaçu,1040,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,35,36,12,12,9,14,6,6,Ok,Ok,2,2,
+2024-09-01,"['Camila', 'Guilherme']",Paraguaçu,1521,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,94,104,0,0,70,81,0,0,Ok,Ok,3,3,
+2024-09-01,"['Camila', 'Guilherme']",Paraguaçu,1440,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,17,17,0,0,11,11,0,0,Ok,Ok,0,0,
+2024-09-01,"['Camila', 'Guilherme']",Narandiba,3211,ESD e Convencional,ESD e Convencional,Base Larga,Base Larga,Ok,Ok,102,112,0,0,62,70,0,0,Ok,Ok,3,3,
+2024-03-01,"['Camila', 'Guilherme', 'Sebastião']",Narandiba,3241,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,67,65,0,0,23,20,0,0,Ok,Ok,2,2,
+2024-10-01,"['Camila', 'Guilherme', 'Maico']",Paraguaçu,4,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,24,18,0,0,17,16,0,0,Ok,Ok,1,1,
+2024-10-01,"['Camila', 'Guilherme', 'Maico']",Paraguaçu,595,Convencional,Convencional,Base Larga,Base Larga,Ok,Ok,38,52,0,0,29,16,0,0,Ok,Ok,1,1,
+2024-10-01,"['Guilherme', 'Maico']",Narandiba,3215,ESD e Convencional,ESD e Convencional,Base Larga,Base Larga,Ok,Não,119,129,0,0,77,87,0,0,Ok,Ok,2,2,"Uma curva projetada para retirar, porém foi mantida"
+2024-10-01,"['Guilherme', 'Maico']",Narandiba,3255,ESD e Convencional,ESD e Convencional,Base Larga,Base Larga,Ok,Ok,123,126,12,12,84,88,0,0,Ok,Ok,1,1,
