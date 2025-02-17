@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 import openpyxl
 import numpy as np
+import glob
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -62,6 +63,8 @@ EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
 REF_PAS_PATH = "dados/reforma_passagem.xlsx"
 AUDITORIA_PATH = "dados/auditoria.csv"
+PASTA_POS = "dados/pos-aplicacao"
+ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
 # Função para carregar dados de CSV ou Excel
 def carregar_dados(caminho, colunas=None, aba=None):
@@ -97,6 +100,7 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
     "Bigodes_Planejado", "Bigodes_Executado", "BigodesDesmanche_Planejado", "BigodesDesmanche_Executado", 
     "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
 ])
+df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
 # Mesclar bases de dados
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
@@ -265,6 +269,10 @@ def dashboard():
     )
     st.plotly_chart(fig_mes)
 
+    st.divider()
+
+    st.table(df_tarefas)
+
 ########################################## REGISTRAR ##########################################
 
 # Função para salvar dados
@@ -381,6 +389,86 @@ def registrar_atividades():
                 with pd.ExcelWriter(REF_PAS_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
                     df_passagem.to_excel(writer, sheet_name="Passagem", index=False)
                 st.success("Dados da aba Passagem atualizados com sucesso!")
+
+    elif tipo_atividade == "Pós-Aplicação":
+        st.header("Upload de Arquivo - Pós-Aplicação")
+
+        # Lista de colunas padronizadas
+        COLUNAS_PADRONIZADAS = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
+
+        # Variável de controle para indicar se o arquivo foi salvo agora
+        arquivo_salvo_agora = False 
+
+        # Upload do arquivo
+        arquivo = st.file_uploader("Carregue um arquivo Excel", type=["xls", "xlsx"])
+
+        if arquivo:
+            # Definir caminho do arquivo
+            caminho_arquivo = os.path.join(PASTA_POS, arquivo.name)
+
+            # Verificar se o arquivo já existe antes de salvar
+            if os.path.exists(caminho_arquivo):
+                st.error(f"O arquivo '{arquivo.name}' já existe na pasta.")
+            else:
+                # Salvar o arquivo na pasta
+                with open(caminho_arquivo, "wb") as f:
+                    f.write(arquivo.getbuffer())
+
+                st.success(f"Arquivo salvo: {arquivo.name}")
+                arquivo_salvo_agora = True  # Marca que um arquivo novo foi salvo
+
+        # Listar arquivos na pasta (somente se não acabamos de salvar um novo arquivo)
+        if not arquivo_salvo_agora:
+            arquivos_excel = glob.glob(os.path.join(PASTA_POS, "*.xls*"))
+
+            if arquivos_excel:
+                dfs = []
+                for arquivo in arquivos_excel:
+                    df = pd.read_excel(arquivo)
+
+                    # Verificar se as colunas estão padronizadas
+                    if list(df.columns) != COLUNAS_PADRONIZADAS:
+                        st.error(f"O arquivo {os.path.basename(arquivo)} não segue o padrão de colunas esperado.")
+                        st.write(f"Colunas esperadas: {COLUNAS_PADRONIZADAS}")
+                        st.write(f"Colunas encontradas: {list(df.columns)}")
+                        continue  # Pula este arquivo
+
+                    dfs.append(df)
+
+                if dfs:
+                    df_total = pd.concat(dfs, ignore_index=True)
+
+                    # Exibir todas as operações disponíveis
+                    operacoes_unicas = df_total["DESC_OPERAÇÃO"].unique().tolist()
+                    operacoes_selecionadas = st.multiselect(
+                        "Selecione as operações que deseja salvar:", operacoes_unicas
+                    )
+
+                    # Filtrar os dados
+                    df_filtrado = df_total[df_total["DESC_OPERAÇÃO"].isin(operacoes_selecionadas)]
+
+                    if not df_filtrado.empty:
+                        st.write("Prévia dos dados filtrados:")
+                        st.dataframe(df_filtrado)
+
+                        # Botão para salvar os dados
+                        if st.button("Salvar Dados no CSV"):
+                            if os.path.exists(ARQUIVO_POS_CSV):
+                                # Carregar dados existentes
+                                df_existente = pd.read_csv(ARQUIVO_POS_CSV)
+
+                                # Concatenar sem duplicar "DESC_OPERAÇÃO", "SETOR" e "TALHÃO"
+                                df_final = pd.concat([df_existente, df_filtrado])
+                                df_final = df_final.drop_duplicates(subset=["DESC_OPERAÇÃO", "SETOR", "TALHÃO"])
+
+                                # Salvar no CSV
+                                df_final.to_csv(ARQUIVO_POS_CSV, index=False)
+                            else:
+                                df_filtrado.to_csv(ARQUIVO_POS_CSV, index=False)
+
+                            st.success("Os dados filtrados foram adicionados ao pos_aplicacao.csv sem duplicações.")
+                    else:
+                        st.warning("Nenhuma operação selecionada. O arquivo não será salvo.")
 
     # Formulário para Auditoria
     elif tipo_atividade == "Auditoria":
