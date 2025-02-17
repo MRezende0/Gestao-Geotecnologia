@@ -315,7 +315,7 @@ def registrar_atividades():
             
             df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
             salvar_dados(df_tarefas, TAREFAS_PATH)
-            st.success("Atividade Semanal registrada com sucesso!")
+            st.success(f"Setor {Setor} registrado com sucesso! Espere a página ser recarregada para adiconar nova atividade.")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
