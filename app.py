@@ -278,7 +278,9 @@ def dashboard():
 
     st.divider()
 
-    st.table(df_tarefas)
+    df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False)
+    st.table(df_tarefas_ordenado, index=False)
+
 
 ########################################## REGISTRAR ##########################################
 
