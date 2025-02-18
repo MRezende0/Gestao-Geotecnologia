@@ -209,19 +209,19 @@ def dashboard():
         )
         st.plotly_chart(fig_status)
 
-    with col2:
-        st.subheader("Projetos por Unidade")
-        df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
-        df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
-        fig_pizza = px.pie(
-            df_contagem_unidade,
-            names="Unidade",
-            values="Quantidade de Projetos",
-            color="Unidade",
-            hole=0.3,
-            labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
-        )
-        st.plotly_chart(fig_pizza)
+    # with col2:
+    #     st.subheader("Projetos por Unidade")
+    #     df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
+    #     df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
+    #     fig_pizza = px.pie(
+    #         df_contagem_unidade,
+    #         names="Unidade",
+    #         values="Quantidade de Projetos",
+    #         color="Unidade",
+    #         hole=0.3,
+    #         labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
+    #     )
+    #     st.plotly_chart(fig_pizza)
 
     st.divider()
 
