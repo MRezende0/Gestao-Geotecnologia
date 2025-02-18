@@ -72,7 +72,7 @@ cursor.execute('''
 
 # Cria a tabela atividades_extra se não existir
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS atividades_extra (
+    CREATE TABLE IF NOT EXISTS atividades_extras (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         Data TEXT,
         Colaborador TEXT,
@@ -121,11 +121,11 @@ def carregar_tarefas():
     return pd.read_sql_query("SELECT * FROM tarefas", conn)
 
 # Função para carregar atividades extra do banco de dados
-def carregar_atividades_extra():
-    return pd.read_sql_query("SELECT * FROM atividades_extra", conn)
+def carregar_atividades_extras():
+    return pd.read_sql_query("SELECT * FROM atividades_extras", conn)
 
 # Função para carregar auditorias do banco de dados
-def carregar_auditorias():
+def carregar_auditoria():
     return pd.read_sql_query("SELECT * FROM auditoria", conn)
 
 ########################################## DADOS ########################################## 
@@ -172,17 +172,21 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
+# Converter tipo da coluna Setor
 df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
 df_base["Setor"] = df_base["Setor"].astype(int)
 
-# Verificando se as colunas "Setor", "Área" e "Unidade" estão em df_base
-print(df_base.columns)
+# Mesclar bases de dados
+df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
 
-# Mesclar df_tarefas com df_base para adicionar Área e Unidade
-df_tarefas = df_tarefas.merge(df_base[['Setor', 'Area', 'Unidade']], on="Setor", how="left")
+# Verificar se a mesclagem funcionou
+if 'Area' not in df_tarefas.columns or 'Unidade' not in df_tarefas.columns:
+    st.error("Erro: As colunas 'Area' e 'Unidade' não foram adicionadas corretamente.")
+    st.stop()  # Interrompe a execução se houver erro
 
-# Verificando se a coluna "Area" foi adicionada corretamente
-print(df_tarefas.columns)
+# Preencher valores nulos após a mesclagem
+df_tarefas['Area'] = df_tarefas['Area'].fillna(0)  # Substituir NaN por 0
+df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')  # Substituir NaN por 'Desconhecida'
 
 ########################################## DASHBOARD ##########################################
 
@@ -190,19 +194,27 @@ def dashboard():
     st.title("📊 Dashboard")
     df_tarefas = carregar_tarefas()
 
+    # Mesclar com df_base para obter Area e Unidade
+    df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
+    df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
+
+    # Tratar valores nulos
+    df_tarefas['Area'] = df_tarefas['Area'].fillna(0)
+    df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
+
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_dashboard(df_tarefas)
 
     # Exibe métricas
-    # col1, col2, col3 = st.columns(3)
-    # with col1:
-    #     total_area = df_tarefas['Area'].sum()
-    #     formatted_area = f"{total_area:,.0f}".replace(',', '.')
-    #     st.metric("Área Total", f"{formatted_area} ha")
-    # with col2:
-    #     st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
-    # with col3:
-    #     st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_area = df_tarefas['Area'].sum()
+        formatted_area = f"{total_area:,.0f}".replace(',', '.')
+        st.metric("Área Total", f"{formatted_area} ha")
+    with col2:
+        st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
+    with col3:
+        st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
 
     st.divider()
 
@@ -272,19 +284,19 @@ def dashboard():
         )
         st.plotly_chart(fig_status)
 
-    # with col2:
-    #     st.subheader("Projetos por Unidade")
-    #     df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
-    #     df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
-    #     fig_pizza = px.pie(
-    #         df_contagem_unidade,
-    #         names="Unidade",
-    #         values="Quantidade de Projetos",
-    #         color="Unidade",
-    #         hole=0.3,
-    #         labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
-    #     )
-    #     st.plotly_chart(fig_pizza)
+    with col2:
+        st.subheader("Projetos por Unidade")
+        df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
+        df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
+        fig_pizza = px.pie(
+            df_contagem_unidade,
+            names="Unidade",
+            values="Quantidade de Projetos",
+            color="Unidade",
+            hole=0.3,
+            labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
+        )
+        st.plotly_chart(fig_pizza)
 
     st.divider()
 
@@ -341,7 +353,8 @@ def dashboard():
 
     st.divider()
 
-    st.table(df_tarefas)
+    df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
+    st.table(df_tarefas_ordenado)
 
 ########################################## REGISTRAR ##########################################
 
@@ -385,7 +398,7 @@ def registrar_atividades():
             Solicitante = st.text_input("Nome do Solicitante")
             SetorSolicitante = st.text_input("Setor Solicitante")
             Atividade = st.selectbox("Atividade", ["", "Impressão de Mapa", "Voo com drone", "Mapa", "Tematização de mapa", "Processamento", "Projeto", "Outro"])
-            Horas = st.time_input("Horas de trabalho")
+            Horas = st.time_input("Horas de trabalho").strftime("%H:%M:%S")  # Converte para string
             submit = st.form_submit_button("Registrar")
 
         if submit:
@@ -559,11 +572,11 @@ def registrar_atividades():
                     Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
                     Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (str(Data), ', '.join(Auditores), Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
-                      TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
-                      Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
-                      Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
-                      Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao))
+                ''', (str(Data), Auditores, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
+                    TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
+                    Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
+                    Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
+                    Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao))
                 conn.commit()
                 st.success("Auditoria registrada com sucesso!")
             except Exception as e:
@@ -577,21 +590,23 @@ def tarefas_semanais():
 
     # Garantir que os dados sejam carregados corretamente
     df_tarefas = carregar_tarefas()
-    # df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
-    df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
-    
+
+    # Converter a coluna 'Setor' para inteiro, se possível
+    df_tarefas["Setor"] = pd.to_numeric(df_tarefas["Setor"], errors="coerce").astype("Int64")
+
+    # Criar dropdown com setores ordenados
     filtro_dropdown = st.selectbox(
-        "🔍 Selecione uma atividade",
-        options=[""] + sorted(list(df_tarefas["Setor"].unique()), key=int),  # Dropdown inclui opção vazia
+        "🔍 Selecione um setor",
+        options=[""] + sorted(df_tarefas["Setor"].dropna().unique().tolist()),  # Remover NaN antes de ordenar
         index=0
     )
 
     # Filtrar os projetos
     if filtro_dropdown:
-        df_tarefas = df_tarefas[df_tarefas["Tipo"] == filtro_dropdown]
+        df_tarefas = df_tarefas[df_tarefas["Setor"] == filtro_dropdown]
     else:
         df_tarefas = df_tarefas
 
@@ -676,7 +691,7 @@ def tarefas_semanais():
         # Edição de tarefas corrigida
         if tabs == "Editar":
             with st.form(key="edit_form"):
-                Data = st.date_input("Data", value=datetime.strptime(tarefa['Data'], "%Y-%m-%d").date())
+                Data = st.date_input("Data", value=datetime.today().date())
                 Setor = st.number_input("Setor", value=tarefa["Setor"])
                 Colaborador = st.selectbox("Colaborador", options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
                                          index=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
@@ -847,34 +862,27 @@ def acompanhamento_reforma_passagem():
 # Função para calcular a aderência
 def calcular_aderencia(planejado, executado):
     try:
-        # Converte para float
         planejado = float(planejado)
         executado = float(executado)
 
-        # Se ambos forem 0, a aderência é 100%
         if planejado == 0 and executado == 0:
             return 100
-        
-        # Se apenas um for 0, aderência é 0%
         if planejado == 0 or executado == 0:
             return 0
 
-        # Divide o menor pelo maior e multiplica por 100
         menor = min(planejado, executado)
         maior = max(planejado, executado)
         return (menor / maior) * 100
     
     except ValueError:
-        # Se não forem numéricos, retorna 100% se forem iguais, senão 0%
         return 100 if str(planejado).strip().lower() == str(executado).strip().lower() else 0
 
 # Página de Auditoria
 def auditoria():
     st.title("🔍 Auditoria")
-    global df_auditoria
 
-    # Aplicando os filtros e retornando o DataFrame filtrado
-    df_auditoria = filtros_auditoria(df_auditoria)
+    # Carregar os dados do banco de dados
+    df_auditoria = carregar_auditoria()
 
     # Criar novas colunas de aderência para o DataFrame filtrado
     colunas_planejado = [col for col in df_auditoria.columns if "_Planejado" in col]
@@ -898,13 +906,12 @@ def auditoria():
         df_tabela[col] = df_tabela[col].apply(lambda x: f"{x:.0f}")
 
     # Calcular a média de cada item de aderência (como "Aderência_Levantes", "Aderência_Bigodes", etc.)
-    colunas_aderencia = [col for col in df_auditoria.columns if "Aderência" in col]  # Obter todas as colunas de aderência
+    colunas_aderencia = [col for col in df_auditoria.columns if "Aderência" in col]
 
-    # Calcular a média de cada item (linha a linha) e armazenar no formato desejado
     df_media_itens = df_auditoria[colunas_aderencia].mean().reset_index()
-    df_media_itens.columns = ["Item", "Média Aderência (%)"]  # Renomear as colunas para facilitar a leitura
+    df_media_itens.columns = ["Item", "Média Aderência (%)"]
 
-    # Dicionário para renomear os itens (exemplo, ajustando conforme necessário)
+    # Dicionário para renomear os itens
     renomear_itens = {
         "Aderência_Levantes": "Levantes",
         "Aderência_Bigodes": "Bigodes",
@@ -921,13 +928,13 @@ def auditoria():
 
     # Criar gráfico de barras horizontais com a média de cada item
     fig_aderencia = px.bar(df_media_itens, 
-                        x="Item",                 # Eixo Y com os itens de aderência
-                        y="Média Aderência (%)",  # Eixo X com as médias de aderência
+                        x="Item",                 
+                        y="Média Aderência (%)",  
                         text="Média Aderência (%)",
-                        orientation="v",         # "h" para barras horizontais
-                        color="Item",             # Cor única para cada barra
-                        color_discrete_sequence=px.colors.qualitative.Set1,  # Lista de cores distintas
-                        )  # Remover título do eixo X
+                        orientation="v",         
+                        color="Item",             
+                        color_discrete_sequence=px.colors.qualitative.Set1,  
+                        )
 
     # Ajustar a posição do rótulo para fora da barra
     fig_aderencia.update_traces(textposition='outside')
@@ -936,7 +943,7 @@ def auditoria():
     fig_aderencia.update_traces(texttemplate='%{text:.0f}%')
 
     fig_aderencia.update_layout(
-        showlegend=False,  # Não mostrar a legenda
+        showlegend=False,  
         xaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
         yaxis=dict(showgrid=False, showticklabels=False, showline=False, zeroline=False))
 
@@ -955,8 +962,10 @@ def auditoria():
 # Página de Atividades Extras
 def atividades_extras():
     st.title("📌 Atividades Extras")
-    global df_extras
-
+    
+    # Carregar os dados do banco de dados
+    df_extras = carregar_atividades_extras()
+    
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_extras = filtros_extras(df_extras)
     
@@ -1000,6 +1009,7 @@ def atividades_extras():
         st.plotly_chart(fig_setor)
     
     # Tabela
+    # Convertendo a coluna "Data" para o formato de exibição
     df_extras["Data"] = pd.to_datetime(df_extras["Data"]).dt.strftime("%d/%m/%Y")
     st.write("### Detalhes das Atividades")
     atividades_realizadas = df_extras[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
