@@ -58,7 +58,7 @@ add_custom_css()
 
 # Caminho dos arquivos CSV
 BASE_PATH = "dados/base.csv"
-TAREFAS_PATH = "dados/tarefas.csv"
+TAREFAS_PATH = "dados/tarefas1.xlsx"
 EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
 REF_PAS_PATH = "dados/reforma_passagem.xlsx"
@@ -275,9 +275,19 @@ def dashboard():
 
 ########################################## REGISTRAR ##########################################
 
-# Função para salvar dados
-def salvar_dados(df, caminho):
+# Função para salvar dados csv
+def salvar_dados_csv(df, caminho):
     df.to_csv(caminho, index=False)
+
+# Função para salvar dados excel
+def salvar_dados_excel(df, path):
+    if os.path.exists(path):
+        # Carregar o arquivo existente
+        df_existente = pd.read_excel(path, engine="openpyxl")
+        # Concatenar os novos dados
+        df = pd.concat([df_existente, df], ignore_index=True)
+    # Salvar a planilha atualizada
+    df.to_excel(path, index=False, engine="openpyxl")
 
 def registrar_atividades():
     st.title("📝 Registrar")
@@ -314,7 +324,7 @@ def registrar_atividades():
                 df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
             
             df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
-            salvar_dados(df_tarefas, TAREFAS_PATH)
+            salvar_dados_excel(nova_tarefa, TAREFAS_PATH)
             st.success(f"Setor {Setor} registrado com sucesso! Espere a página ser recarregada para adiconar nova atividade.")
 
     # Formulário para Atividade Extra
@@ -345,7 +355,7 @@ def registrar_atividades():
                 df_extras = pd.DataFrame(columns=["Data", "Descricao", "Colaborador", "Prioridade"])
             
             df_extras = pd.concat([df_extras, nova_tarefa], ignore_index=True)
-            salvar_dados(df_extras, EXTRAS_PATH)
+            salvar_dados_csv(df_extras, EXTRAS_PATH)
             st.success("Atividade Extra registrada com sucesso!")
 
     # Formulário para Reforma e Passagem
@@ -538,7 +548,7 @@ def registrar_atividades():
                 ])
 
             df_auditoria = pd.concat([df_auditoria, nova_auditoria], ignore_index=True)
-            salvar_dados(df_auditoria, AUDITORIA_PATH)
+            salvar_dados_csv(df_auditoria, AUDITORIA_PATH)
             st.success("Auditoria registrada com sucesso!")
 
 ########################################## ATIVIDADES ##########################################
@@ -672,7 +682,7 @@ def tarefas_semanais():
                             "Status": Status
                         }
 
-                        salvar_dados(df_tarefas, TAREFAS_PATH)  # Salva no CSV
+                        salvar_dados_excel(df_tarefas, TAREFAS_PATH)  # Salva no Excel
                         st.session_state["projeto_selecionado"] = df_tarefas.loc[index].to_dict()
                         st.session_state["editando"] = False
                         st.success("Alterações salvas com sucesso!")
