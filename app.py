@@ -68,6 +68,7 @@ PASTA_POS = "dados/pos-aplicacao"
 ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
 # Função para carregar dados de CSV ou Excel
+# Função para carregar dados de CSV ou Excel
 def carregar_dados(caminho, colunas=None, aba=None):
     if os.path.exists(caminho):
         _, extensao = os.path.splitext(caminho)
@@ -75,10 +76,7 @@ def carregar_dados(caminho, colunas=None, aba=None):
         if extensao == ".csv":
             return pd.read_csv(caminho)
         elif extensao in [".xls", ".xlsx"]:
-            if aba is not None:
-                return pd.read_excel(caminho, sheet_name=aba)
-            else:
-                return pd.read_excel(caminho)  # Carrega a primeira aba por padrão
+            return pd.read_excel(caminho, sheet_name=aba) if aba is not None else pd.read_excel(caminho)
         else:
             raise ValueError(f"Formato de arquivo {extensao} não suportado!")
     else:
@@ -102,6 +100,7 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
     "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
+df_tarefas1 = carregar_dados(TAREFAS_PATH1, ["Data","Setor","Colaborador","Tipo","Status"])
 
 # Mesclar bases de dados
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
@@ -280,29 +279,26 @@ def dashboard():
 def salvar_dados_csv(df, caminho):
     df.to_csv(caminho, index=False)
 
+# Função para salvar dados no Excel: lê o arquivo existente (se houver), concatena os novos dados e salva
 def salvar_dados_excel(df_novo, path):
-    print(f"Tentando salvar os dados em: {path}")
-
+    st.write(f"Tentando salvar os dados em: {path}")
     if os.path.exists(path):
         try:
             df_existente = pd.read_excel(path, engine="openpyxl")
-            print("Planilha carregada com sucesso!")
-
-            # Concatenando os dados novos com os existentes
+            st.write("Planilha carregada com sucesso!")
             df_final = pd.concat([df_existente, df_novo], ignore_index=True)
-
         except Exception as e:
-            print(f"Erro ao carregar a planilha existente: {e}")
+            st.error(f"Erro ao carregar a planilha existente: {e}")
             df_final = df_novo  # Se falhar, usa apenas os novos dados
     else:
-        print("Arquivo não encontrado, criando novo...")
+        st.write("Arquivo não encontrado, criando novo...")
         df_final = df_novo
 
     try:
         df_final.to_excel(path, index=False, engine="openpyxl")
-        print("Dados salvos com sucesso!")
+        st.success("Dados salvos com sucesso!")
     except Exception as e:
-        print(f"Erro ao salvar os dados: {e}")
+        st.error(f"Erro ao salvar os dados: {e}")
 
 def registrar_atividades():
     st.title("📝 Registrar")
@@ -333,18 +329,15 @@ def registrar_atividades():
                 "Status": [Status]
             })
             
-            if os.path.exists(TAREFAS_PATH):
-                df_tarefas = pd.read_csv(TAREFAS_PATH)
-            else:
-                df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
+            # if os.path.exists(TAREFAS_PATH):
+            #     df_tarefas = pd.read_csv(TAREFAS_PATH)
+            # else:
+            #     df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
             
-            nova_tarefa.to_excel("dados/tarefas1.xlsx", index=False, engine="openpyxl")
-
-            df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
-            st.write("Antes de salvar:", nova_tarefa)
+            st.write("Dados a serem salvos:", nova_tarefa)
+            # Salva os dados na planilha tarefas1.xlsx
             salvar_dados_excel(nova_tarefa, TAREFAS_PATH1)
-            st.write("Depois de salvar, verifique o arquivo manualmente.")
-            st.success(f"Setor {Setor} registrado com sucesso! Espere a página ser recarregada para adiconar nova atividade.")
+            st.success(f"Setor {Setor} registrado com sucesso!")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
