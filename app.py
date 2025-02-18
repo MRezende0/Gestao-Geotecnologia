@@ -7,6 +7,7 @@ from datetime import datetime
 import openpyxl
 import numpy as np
 import glob
+import sqlite3
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -54,6 +55,25 @@ def add_custom_css():
 
 add_custom_css()
 
+########################################## BANCO DE DADOS ##########################################
+
+# Conecta (ou cria) o banco de dados
+conn = sqlite3.connect('dados.db', check_same_thread=False)
+cursor = conn.cursor()
+
+# Cria a tabela se não existir
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS tarefas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Data TEXT,
+        Setor INTEGER,
+        Colaborador TEXT,
+        Tipo TEXT,
+        Status TEXT
+    )
+''')
+conn.commit()
+
 ########################################## DADOS ########################################## 
 
 # Caminho dos arquivos CSV
@@ -67,7 +87,6 @@ AUDITORIA_PATH = "dados/auditoria.csv"
 PASTA_POS = "dados/pos-aplicacao"
 ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
-# Função para carregar dados de CSV ou Excel
 # Função para carregar dados de CSV ou Excel
 def carregar_dados(caminho, colunas=None, aba=None):
     if os.path.exists(caminho):
@@ -320,14 +339,26 @@ def registrar_atividades():
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
+        # if submit:
+        #     nova_tarefa = pd.DataFrame({
+        #         "Data": [Data],
+        #         "Setor": [Setor],
+        #         "Colaborador": [Colaborador],
+        #         "Tipo": [Tipo],
+        #         "Status": [Status]
+        #     })
+
         if submit:
-            nova_tarefa = pd.DataFrame({
-                "Data": [Data],
-                "Setor": [Setor],
-                "Colaborador": [Colaborador],
-                "Tipo": [Tipo],
-                "Status": [Status]
-            })
+            # Insere os dados na tabela
+            try:
+                cursor.execute('''
+                    INSERT INTO tarefas (Data, Setor, Colaborador, Tipo, Status)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (str(Data), Setor, Colaborador, Tipo, Status))
+                conn.commit()
+                st.success("Atividade registrada com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao registrar a atividade: {e}")
             
             # if os.path.exists(TAREFAS_PATH):
             #     df_tarefas = pd.read_csv(TAREFAS_PATH)
