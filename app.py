@@ -278,7 +278,7 @@ def dashboard():
 
     st.divider()
 
-    st.table(df_tarefas, ascending=False)
+    st.table(df_tarefas)
 
 ########################################## REGISTRAR ##########################################
 
