@@ -280,19 +280,29 @@ def dashboard():
 def salvar_dados_csv(df, caminho):
     df.to_csv(caminho, index=False)
 
-def salvar_dados_excel(df, path):
+def salvar_dados_excel(df_novo, path):
+    print(f"Tentando salvar os dados em: {path}")
+
     if os.path.exists(path):
         try:
-            # Carregar o arquivo existente
             df_existente = pd.read_excel(path, engine="openpyxl")
-            # Concatenar os novos dados
-            df = pd.concat([df_existente, df], ignore_index=True)
+            print("Planilha carregada com sucesso!")
+
+            # Concatenando os dados novos com os existentes
+            df_final = pd.concat([df_existente, df_novo], ignore_index=True)
+
         except Exception as e:
-            print(f"Erro ao ler o Excel: {e}")
-            df_existente = pd.DataFrame()  # Se falhar, assume um DataFrame vazio
+            print(f"Erro ao carregar a planilha existente: {e}")
+            df_final = df_novo  # Se falhar, usa apenas os novos dados
     else:
-        df_existente = pd.DataFrame()
-    df.to_excel(path, index=False, engine="openpyxl")
+        print("Arquivo não encontrado, criando novo...")
+        df_final = df_novo
+
+    try:
+        df_final.to_excel(path, index=False, engine="openpyxl")
+        print("Dados salvos com sucesso!")
+    except Exception as e:
+        print(f"Erro ao salvar os dados: {e}")
 
 def registrar_atividades():
     st.title("📝 Registrar")
@@ -331,7 +341,9 @@ def registrar_atividades():
             nova_tarefa.to_excel("dados/tarefas1.xlsx", index=False, engine="openpyxl")
 
             df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
+            st.write("Antes de salvar:", nova_tarefa)
             salvar_dados_excel(nova_tarefa, TAREFAS_PATH1)
+            st.write("Depois de salvar, verifique o arquivo manualmente.")
             st.success(f"Setor {Setor} registrado com sucesso! Espere a página ser recarregada para adiconar nova atividade.")
 
     # Formulário para Atividade Extra
