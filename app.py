@@ -2,11 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-from dateutil.relativedelta import relativedelta
 from datetime import datetime
-import openpyxl
-import numpy as np
-import glob
 import sqlite3
 
 ########################################## CONFIGURAÇÃO ##########################################
@@ -74,6 +70,7 @@ cursor.execute('''
 ''')
 conn.commit()
 
+# Função para carregar tarefas do banco de dados
 def carregar_tarefas():
     return pd.read_sql_query("SELECT * FROM tarefas", conn)
 
@@ -81,8 +78,6 @@ def carregar_tarefas():
 
 # Caminho dos arquivos CSV
 BASE_PATH = "dados/base.csv"
-TAREFAS_PATH = "dados/tarefas.csv"
-TAREFAS_PATH1 = "dados/tarefas1.xlsx"
 EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
 REF_PAS_PATH = "dados/reforma_passagem.xlsx"
@@ -109,7 +104,6 @@ df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Carrega a primeira aba
 df_reforma = carregar_dados(REF_PAS_PATH, aba=1)  # Carrega a segunda aba
 
 # Carrega os dados iniciais
-# df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
 df_tarefas = carregar_tarefas()
 df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
 df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
@@ -123,7 +117,6 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
     "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
-df_tarefas1 = carregar_dados(TAREFAS_PATH1, ["Data","Setor","Colaborador","Tipo","Status"])
 
 # Mesclar bases de dados
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
@@ -132,8 +125,6 @@ df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
 
 def dashboard():
     st.title("📊 Dashboard")
-    # global df_tarefas
-
     df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
@@ -157,8 +148,6 @@ def dashboard():
 
     # Linha 1 - Gráficos de Atividades por Colaborador e Projetos por Tipo
     with col1:
-
-        # Gráfico de Atividades por Colaborador
         st.subheader("Atividades por Colaborador")
         df_contagem_responsavel = df_tarefas.groupby("Colaborador")["Tipo"].count().reset_index()
         df_contagem_responsavel.columns = ["Colaborador", "Quantidade de Projetos"]
@@ -177,12 +166,9 @@ def dashboard():
             margin=dict(l=10, r=10, t=10, b=10),
             xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False)
         )
-
         st.plotly_chart(fig_responsavel)
 
     with col2:
-
-        # Gráfico de Quantidade de Projetos por Tipo
         st.subheader("Quantidade de Projetos por Tipo")
         df_contagem_tipo = df_tarefas.groupby("Tipo")["Colaborador"].count().reset_index()
         df_contagem_tipo.columns = ["Tipo", "Quantidade de Projetos"]
@@ -203,8 +189,6 @@ def dashboard():
         st.plotly_chart(fig_tipo)
 
     with col1:
-
-        # Gráfico de Status dos Projetos
         st.subheader("Status dos Projetos")
         df_contagem_status = df_tarefas.groupby("Status")["Tipo"].count().reset_index()
         df_contagem_status.columns = ["Status", "Quantidade de Projetos"]
@@ -226,8 +210,6 @@ def dashboard():
         st.plotly_chart(fig_status)
 
     with col2:
-
-        # Gráfico de Projetos por Unidade
         st.subheader("Projetos por Unidade")
         df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
         df_contagem_unidade.columns = ["Unidade", "Quantidade de Projetos"]
@@ -300,31 +282,6 @@ def dashboard():
 
 ########################################## REGISTRAR ##########################################
 
-# Função para salvar dados csv
-def salvar_dados_csv(df, caminho):
-    df.to_csv(caminho, index=False)
-
-# Função para salvar dados no Excel: lê o arquivo existente (se houver), concatena os novos dados e salva
-def salvar_dados_excel(df_novo, path):
-    st.write(f"Tentando salvar os dados em: {path}")
-    if os.path.exists(path):
-        try:
-            df_existente = pd.read_excel(path, engine="openpyxl")
-            st.write("Planilha carregada com sucesso!")
-            df_final = pd.concat([df_existente, df_novo], ignore_index=True)
-        except Exception as e:
-            st.error(f"Erro ao carregar a planilha existente: {e}")
-            df_final = df_novo  # Se falhar, usa apenas os novos dados
-    else:
-        st.write("Arquivo não encontrado, criando novo...")
-        df_final = df_novo
-
-    try:
-        df_final.to_excel(path, index=False, engine="openpyxl")
-        st.success("Dados salvos com sucesso!")
-    except Exception as e:
-        st.error(f"Erro ao salvar os dados: {e}")
-
 def registrar_atividades():
     st.title("📝 Registrar")
 
@@ -345,18 +302,8 @@ def registrar_atividades():
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
-        # if submit:
-        #     nova_tarefa = pd.DataFrame({
-        #         "Data": [Data],
-        #         "Setor": [Setor],
-        #         "Colaborador": [Colaborador],
-        #         "Tipo": [Tipo],
-        #         "Status": [Status]
-        #     })
-
         if submit:
             try:
-                # Insere os dados diretamente no SQLite
                 cursor.execute('''
                     INSERT INTO tarefas (Data, Setor, Colaborador, Tipo, Status)
                     VALUES (?, ?, ?, ?, ?)
