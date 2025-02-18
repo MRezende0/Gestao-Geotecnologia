@@ -118,6 +118,10 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
+
+df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
+df_base["Setor"] = df_base["Setor"].astype(int)
+
 # Mesclar bases de dados
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
 
