@@ -175,8 +175,14 @@ df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","
 df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
 df_base["Setor"] = df_base["Setor"].astype(int)
 
-# Mesclar bases de dados
-df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
+# Verificando se as colunas "Setor", "Área" e "Unidade" estão em df_base
+print(df_base.columns)
+
+# Mesclar df_tarefas com df_base para adicionar Área e Unidade
+df_tarefas = df_tarefas.merge(df_base[['Setor', 'Area', 'Unidade']], on="Setor", how="left")
+
+# Verificando se a coluna "Area" foi adicionada corretamente
+print(df_tarefas.columns)
 
 ########################################## DASHBOARD ##########################################
 
@@ -188,15 +194,15 @@ def dashboard():
     df_tarefas = filtros_dashboard(df_tarefas)
 
     # Exibe métricas
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        total_area = df_tarefas['Area'].sum()
-        formatted_area = f"{total_area:,.0f}".replace(',', '.')
-        st.metric("Área Total", f"{formatted_area} ha")
-    with col2:
-        st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
-    with col3:
-        st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     total_area = df_tarefas['Area'].sum()
+    #     formatted_area = f"{total_area:,.0f}".replace(',', '.')
+    #     st.metric("Área Total", f"{formatted_area} ha")
+    # with col2:
+    #     st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
+    # with col3:
+    #     st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
 
     st.divider()
 
@@ -335,7 +341,7 @@ def dashboard():
 
     st.divider()
 
-    # st.table(df_tarefas)
+    st.table(df_tarefas)
 
 ########################################## REGISTRAR ##########################################
 
@@ -351,7 +357,7 @@ def registrar_atividades():
     # Formulário para Atividade Semanal
     if tipo_atividade == "Atividade Semanal":
         with st.form("form_atividade_semanal"):
-            st.subheader("Atividade Semanal")
+            # Adicionar campos Unidade e Area
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
@@ -368,7 +374,7 @@ def registrar_atividades():
                 conn.commit()
                 st.success("Atividade registrada com sucesso!")
             except Exception as e:
-                st.error(f"Erro ao registrar: {e}")
+                st.error(f"Erro ao registrar: {str(e)}")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
@@ -570,7 +576,7 @@ def tarefas_semanais():
     st.title("📂 Atividades")
 
     # Garantir que os dados sejam carregados corretamente
-    global df_tarefas  # Usa a variável global para evitar redefinição local errada
+    df_tarefas = carregar_tarefas()
     # df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
     df_tarefas = carregar_tarefas()
 
@@ -667,52 +673,31 @@ def tarefas_semanais():
                 unsafe_allow_html=True
             )
 
-        elif tabs == "Editar":
-            # Formulário de edição do projeto
-            st.subheader("Editar Atividade")
-
+        # Edição de tarefas corrigida
+        if tabs == "Editar":
             with st.form(key="edit_form"):
-                # Campos de edição
-                # Data = st.date_input("Data", value=tarefa["Data"].date() if isinstance(tarefa["Data"], pd.Timestamp) else datetime.strptime(tarefa["Data"], "%Y-%m-%d").date())
-                Data = st.date_input("Data", value=datetime.today().date())
-                Setor = st.number_input("Setor", value=tarefa["Setor"], min_value=0, step=1, format="%d")
-                Colaborador = st.selectbox("Colaborador", ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], index=(["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]) if tarefa["Colaborador"] in ["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian"] else 0))
-                Tipo = st.selectbox("Tipo", ["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"], index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
-                Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"], index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
+                Data = st.date_input("Data", value=datetime.strptime(tarefa['Data'], "%Y-%m-%d").date())
+                Setor = st.number_input("Setor", value=tarefa["Setor"])
+                Colaborador = st.selectbox("Colaborador", options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
+                                         index=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
+                Tipo = st.selectbox("Tipo", options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"],
+                                  index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
+                Status = st.selectbox("Status", options=["A fazer", "Em andamento", "A validar", "Concluído"],
+                                    index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
 
-                # Botões de salvar e cancelar
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    # if st.form_submit_button("Salvar Alterações"):
-                    #     # Atualiza o projeto no DataFrame
-                    #     index = df_tarefas[df_tarefas["Tipo"] == tarefa["Tipo"]].index[0]
-                    #     df_tarefas.loc[index] = {
-                    #         "Data": Data.strftime("%Y-%m-%d"),
-                    #         "Setor": Setor,
-                    #         "Colaborador": Colaborador,
-                    #         "Tipo": Tipo,
-                    #         "Status": Status
-                    #     }
-                        
-                    if st.form_submit_button("Salvar Alterações"):
+                if st.form_submit_button("Salvar Alterações"):
+                    try:
                         cursor.execute('''
                             UPDATE tarefas 
-                            SET Data = ?, Setor = ?, Colaborador = ?, Tipo = ?, Status = ?
-                            WHERE id = ?
+                            SET Data=?, Setor=?, Colaborador=?, Tipo=?, Status=?
+                            WHERE id=?
                         ''', (str(Data), Setor, Colaborador, Tipo, Status, tarefa['id']))
                         conn.commit()
-
-                        # salvar_dados_excel(df_tarefas, TAREFAS_PATH1)  # Salva no Excel
-                        # st.session_state["projeto_selecionado"] = df_tarefas.loc[index].to_dict()
-                        st.session_state["editando"] = False
-                        st.success("Alterações salvas com sucesso!")
+                        st.success("Atividade atualizada com sucesso!")
+                        st.session_state.pop("projeto_selecionado", None)
                         st.rerun()
-
-                with col2:
-                    if st.form_submit_button("Cancelar"):
-                        st.session_state["editando"] = False
-                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao atualizar: {str(e)}")
 
 ########################################## REFORMA E PASSAGEM ##########################################
 
@@ -1023,17 +1008,18 @@ def atividades_extras():
 ########################################## FILTROS ##########################################
 
 # Função para filtros da aba Dashboard
-def filtros_dashboard(df_tarefas):
+def filtros_dashboard(df):
+    df = df.copy()  # Trabalhar com uma cópia para não afetar o DataFrame original
+    df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
 
     st.sidebar.title("Filtros")
 
-    # Filtro de Data
-    # Garantir que a coluna "Data" está em formato datetime
-    df_tarefas["Data"] = pd.to_datetime(df_tarefas["Data"], errors='coerce')
-
-    # Definindo o intervalo de datas
-    data_min = df_tarefas["Data"].min().date()  # Convertendo para date
-    data_max = df_tarefas["Data"].max().date()  # Convertendo para date
+    # Verificar se há dados
+    if not df.empty:
+        data_min = df['Data'].min().date()
+        data_max = df['Data'].max().date()
+    else:
+        data_min = data_max = datetime.today().date()
 
     # Se as datas forem iguais, adiciona um dia a `data_max`
     if data_min == data_max:
@@ -1053,8 +1039,8 @@ def filtros_dashboard(df_tarefas):
     data_fim = pd.to_datetime(data_fim)
 
     # Filtrando o DataFrame com base nas datas selecionadas
-    df_tarefas = df_tarefas[(df_tarefas["Data"] >= data_inicio) & 
-                            (df_tarefas["Data"] <= data_fim)]
+    df_tarefas = df[(df["Data"] >= data_inicio) & 
+                            (df["Data"] <= data_fim)]
     
     # Filtro de Colaborador
     colaboradores_unicos = df_tarefas["Colaborador"].unique()  # Obter a lista de colaboradores únicos
@@ -1271,8 +1257,12 @@ def main_app():
 
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = True  # Apenas inicializa na primeira execução
+        st.session_state["logged_in"] = True
 
-    # Sempre chama a main_app, mas a lógica de exibição pode depender de logged_in
-    if st.session_state["logged_in"]:
-        main_app()
+    try:
+        if st.session_state["logged_in"]:
+            main_app()
+    finally:
+        # Fechar conexão ao final
+        if conn:
+            conn.close()
