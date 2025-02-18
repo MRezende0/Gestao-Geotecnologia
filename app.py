@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 from datetime import datetime
+import glob
 import sqlite3
 
 ########################################## CONFIGURAÇÃO ##########################################
@@ -57,7 +58,7 @@ add_custom_css()
 conn = sqlite3.connect('dados/dados.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Cria a tabela se não existir
+# Cria a tabela tarefas se não existir
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS tarefas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,11 +69,64 @@ cursor.execute('''
         Status TEXT
     )
 ''')
+
+# Cria a tabela atividades_extra se não existir
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS atividades_extra (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Data TEXT,
+        Colaborador TEXT,
+        Solicitante TEXT,
+        SetorSolicitante TEXT,
+        Atividade TEXT,
+        Horas TEXT
+    )
+''')
+
+# Cria a tabela auditoria se não existir
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS auditoria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Data TEXT,
+        Auditores TEXT,
+        Unidade TEXT,
+        Setor INTEGER,
+        TipoPlantio_Planejado TEXT,
+        TipoPlantio_Executado TEXT,
+        TipoTerraco_Planejado TEXT,
+        TipoTerraco_Executado TEXT,
+        QuantidadeTerraco_Planejado TEXT,
+        QuantidadeTerraco_Executado TEXT,
+        Levantes_Planejado INTEGER,
+        Levantes_Executado INTEGER,
+        LevantesDesmanche_Planejado INTEGER,
+        LevantesDesmanche_Executado INTEGER,
+        Bigodes_Planejado INTEGER,
+        Bigodes_Executado INTEGER,
+        BigodesDesmanche_Planejado INTEGER,
+        BigodesDesmanche_Executado INTEGER,
+        Carreadores_Planejado TEXT,
+        Carreadores_Executado TEXT,
+        Patios_Projetado INTEGER,
+        Patios_Executado INTEGER,
+        Observacao TEXT
+    )
+''')
+
+# Salva as mudanças no banco de dados
 conn.commit()
 
 # Função para carregar tarefas do banco de dados
 def carregar_tarefas():
     return pd.read_sql_query("SELECT * FROM tarefas", conn)
+
+# Função para carregar atividades extra do banco de dados
+def carregar_atividades_extra():
+    return pd.read_sql_query("SELECT * FROM atividades_extra", conn)
+
+# Função para carregar auditorias do banco de dados
+def carregar_auditorias():
+    return pd.read_sql_query("SELECT * FROM auditoria", conn)
 
 ########################################## DADOS ########################################## 
 
@@ -117,7 +171,6 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
     "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
-
 
 df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
 df_base["Setor"] = df_base["Setor"].astype(int)
@@ -330,23 +383,15 @@ def registrar_atividades():
             submit = st.form_submit_button("Registrar")
 
         if submit:
-            nova_tarefa = pd.DataFrame({
-                "Data": [Data],
-                "Colaborador": [Colaborador],
-                "Solicitante": [Solicitante],
-                "SetorSolicitante": [SetorSolicitante],
-                "Atividade": [Atividade],
-                "Horas": [Horas]
-            })
-            
-            if os.path.exists(EXTRAS_PATH):
-                df_extras = pd.read_csv(EXTRAS_PATH)
-            else:
-                df_extras = pd.DataFrame(columns=["Data", "Descricao", "Colaborador", "Prioridade"])
-            
-            df_extras = pd.concat([df_extras, nova_tarefa], ignore_index=True)
-            salvar_dados_csv(df_extras, EXTRAS_PATH)
-            st.success("Atividade Extra registrada com sucesso!")
+            try:
+                cursor.execute('''
+                    INSERT INTO atividades_extras (Data, Colaborador, Solicitante, SetorSolicitante, Atividade, Horas)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (str(Data), Colaborador, Solicitante, SetorSolicitante, Atividade, Horas))
+                conn.commit()
+                st.success("Atividade Extra registrada com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao registrar: {e}")
 
     # Formulário para Reforma e Passagem
     elif tipo_atividade == "Reforma e Passagem":
@@ -500,46 +545,23 @@ def registrar_atividades():
             submit = st.form_submit_button("Registrar")
 
         if submit:
-            nova_auditoria = pd.DataFrame({
-                "Data": [Data],
-                "Auditores": [Auditores],
-                "Unidade": [Unidade],
-                "Setor": [Setor],
-                "TipoPlantio_Planejado": [TipoPlantio_Planejado],
-                "TipoPlantio_Executado": [TipoPlantio_Executado],
-                "TipoTerraco_Planejado": [TipoTerraco_Planejado],
-                "TipoTerraco_Executado": [TipoTerraco_Executado],
-                "QuantidadeTerraco_Planejado": [QuantidadeTerraco_Planejado],
-                "QuantidadeTerraco_Executado": [QuantidadeTerraco_Executado],
-                "Levantes_Planejado": [Levantes_Planejado],
-                "Levantes_Executado": [Levantes_Executado],
-                "LevantesDesmanche_Planejado": [LevantesDesmanche_Planejado],
-                "LevantesDesmanche_Executado": [LevantesDesmanche_Executado],
-                "Bigodes_Planejado": [Bigodes_Planejado],
-                "Bigodes_Executado": [Bigodes_Executado],
-                "BigodesDesmanche_Planejado": [BigodesDesmanche_Planejado],
-                "BigodesDesmanche_Executado": [BigodesDesmanche_Executado],
-                "Carreadores_Planejado": [Carreadores_Planejado],
-                "Carreadores_Executado": [Carreadores_Executado],
-                "Patios_Projetado": [Patios_Projetado],
-                "Patios_Executado": [Patios_Executado],
-                "Observacao": [Observacao]
-            })
-
-            if os.path.exists(AUDITORIA_PATH):
-                df_auditoria = pd.read_csv(AUDITORIA_PATH)
-            else:
-                df_auditoria = pd.DataFrame(columns=[
-                    "Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", 
-                    "TipoTerraco_Planejado", "TipoTerraco_Executado", "QuantidadeTerraco_Planejado", "QuantidadeTerraco_Executado", 
-                    "Levantes_Planejado", "Levantes_Executado", "LevantesDesmanche_Planejado", "LevantesDesmanche_Executado", 
-                    "Bigodes_Planejado", "Bigodes_Executado", "BigodesDesmanche_Planejado", "BigodesDesmanche_Executado", 
-                    "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
-                ])
-
-            df_auditoria = pd.concat([df_auditoria, nova_auditoria], ignore_index=True)
-            salvar_dados_csv(df_auditoria, AUDITORIA_PATH)
-            st.success("Auditoria registrada com sucesso!")
+            try:
+                cursor.execute('''
+                    INSERT INTO auditoria (Data, Auditores, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
+                    TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
+                    Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
+                    Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
+                    Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (str(Data), ', '.join(Auditores), Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
+                      TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
+                      Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
+                      Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
+                      Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao))
+                conn.commit()
+                st.success("Auditoria registrada com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao registrar: {e}")
 
 ########################################## ATIVIDADES ##########################################
 
