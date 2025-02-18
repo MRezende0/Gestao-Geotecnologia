@@ -58,7 +58,7 @@ add_custom_css()
 ########################################## BANCO DE DADOS ##########################################
 
 # Conecta (ou cria) o banco de dados
-conn = sqlite3.connect('dados.db', check_same_thread=False)
+conn = sqlite3.connect('dados/dados.db', check_same_thread=False)
 cursor = conn.cursor()
 
 # Cria a tabela se não existir
@@ -73,6 +73,9 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+
+def carregar_tarefas():
+    return pd.read_sql_query("SELECT * FROM tarefas", conn)
 
 ########################################## DADOS ########################################## 
 
@@ -106,7 +109,8 @@ df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Carrega a primeira aba
 df_reforma = carregar_dados(REF_PAS_PATH, aba=1)  # Carrega a segunda aba
 
 # Carrega os dados iniciais
-df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+# df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+df_tarefas = carregar_tarefas()
 df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
 df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
 df_extras = carregar_dados(EXTRAS_PATH, ["Data", "Colaborador", "Solicitante", "SetorSolicitante", "Atividade", "Horas", "Descrição"])
@@ -128,7 +132,9 @@ df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
 
 def dashboard():
     st.title("📊 Dashboard")
-    global df_tarefas
+    # global df_tarefas
+
+    df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_dashboard(df_tarefas)
@@ -349,8 +355,8 @@ def registrar_atividades():
         #     })
 
         if submit:
-            # Insere os dados na tabela
             try:
+                # Insere os dados diretamente no SQLite
                 cursor.execute('''
                     INSERT INTO tarefas (Data, Setor, Colaborador, Tipo, Status)
                     VALUES (?, ?, ?, ?, ?)
@@ -358,17 +364,7 @@ def registrar_atividades():
                 conn.commit()
                 st.success("Atividade registrada com sucesso!")
             except Exception as e:
-                st.error(f"Erro ao registrar a atividade: {e}")
-            
-            # if os.path.exists(TAREFAS_PATH):
-            #     df_tarefas = pd.read_csv(TAREFAS_PATH)
-            # else:
-            #     df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
-            
-            st.write("Dados a serem salvos:", nova_tarefa)
-            # Salva os dados na planilha tarefas1.xlsx
-            salvar_dados_excel(nova_tarefa, TAREFAS_PATH1)
-            st.success(f"Setor {Setor} registrado com sucesso!")
+                st.error(f"Erro ao registrar: {e}")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
@@ -602,7 +598,8 @@ def tarefas_semanais():
 
     # Garantir que os dados sejam carregados corretamente
     global df_tarefas  # Usa a variável global para evitar redefinição local errada
-    df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+    # df_tarefas = carregar_dados(TAREFAS_PATH, ["Data", "Setor", "Colaborador", "Tipo", "Status"])
+    df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
@@ -714,19 +711,27 @@ def tarefas_semanais():
                 col1, col2 = st.columns(2)
 
                 with col1:
+                    # if st.form_submit_button("Salvar Alterações"):
+                    #     # Atualiza o projeto no DataFrame
+                    #     index = df_tarefas[df_tarefas["Tipo"] == tarefa["Tipo"]].index[0]
+                    #     df_tarefas.loc[index] = {
+                    #         "Data": Data.strftime("%Y-%m-%d"),
+                    #         "Setor": Setor,
+                    #         "Colaborador": Colaborador,
+                    #         "Tipo": Tipo,
+                    #         "Status": Status
+                    #     }
+                        
                     if st.form_submit_button("Salvar Alterações"):
-                        # Atualiza o projeto no DataFrame
-                        index = df_tarefas[df_tarefas["Tipo"] == tarefa["Tipo"]].index[0]
-                        df_tarefas.loc[index] = {
-                            "Data": Data.strftime("%Y-%m-%d"),
-                            "Setor": Setor,
-                            "Colaborador": Colaborador,
-                            "Tipo": Tipo,
-                            "Status": Status
-                        }
+                        cursor.execute('''
+                            UPDATE tarefas 
+                            SET Data = ?, Setor = ?, Colaborador = ?, Tipo = ?, Status = ?
+                            WHERE id = ?
+                        ''', (str(Data), Setor, Colaborador, Tipo, Status, tarefa['id']))
+                        conn.commit()
 
-                        salvar_dados_excel(df_tarefas, TAREFAS_PATH1)  # Salva no Excel
-                        st.session_state["projeto_selecionado"] = df_tarefas.loc[index].to_dict()
+                        # salvar_dados_excel(df_tarefas, TAREFAS_PATH1)  # Salva no Excel
+                        # st.session_state["projeto_selecionado"] = df_tarefas.loc[index].to_dict()
                         st.session_state["editando"] = False
                         st.success("Alterações salvas com sucesso!")
                         st.rerun()
