@@ -281,6 +281,7 @@ def dashboard():
     df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False).reset_index(drop=True)
     st.table(df_tarefas_ordenado)
 
+
 ########################################## REGISTRAR ##########################################
 
 def registrar_atividades():
