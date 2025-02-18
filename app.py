@@ -130,16 +130,16 @@ def dashboard():
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_dashboard(df_tarefas)
 
-    # Exibe métricas
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        total_area = df_tarefas['Area'].sum()
-        formatted_area = f"{total_area:,.0f}".replace(',', '.')
-        st.metric("Área Total", f"{formatted_area} ha")
-    with col2:
-        st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
-    with col3:
-        st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
+    # # Exibe métricas
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     total_area = df_tarefas['Area'].sum()
+    #     formatted_area = f"{total_area:,.0f}".replace(',', '.')
+    #     st.metric("Área Total", f"{formatted_area} ha")
+    # with col2:
+    #     st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
+    # with col3:
+    #     st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
 
     st.divider()
 
