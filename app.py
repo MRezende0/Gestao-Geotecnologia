@@ -58,7 +58,8 @@ add_custom_css()
 
 # Caminho dos arquivos CSV
 BASE_PATH = "dados/base.csv"
-TAREFAS_PATH = "dados/tarefas1.xlsx"
+TAREFAS_PATH = "dados/tarefas.csv"
+TAREFAS_PATH1 = "dados/tarefas1.xlsx"
 EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
 REF_PAS_PATH = "dados/reforma_passagem.xlsx"
@@ -324,7 +325,7 @@ def registrar_atividades():
                 df_tarefas = pd.DataFrame(columns=["Data", "Setor", "Colaborador", "Tipo", "Status"])
             
             df_tarefas = pd.concat([df_tarefas, nova_tarefa], ignore_index=True)
-            salvar_dados_excel(nova_tarefa, TAREFAS_PATH)
+            salvar_dados_excel(nova_tarefa, TAREFAS_PATH1)
             st.success(f"Setor {Setor} registrado com sucesso! Espere a página ser recarregada para adiconar nova atividade.")
 
     # Formulário para Atividade Extra
@@ -682,7 +683,7 @@ def tarefas_semanais():
                             "Status": Status
                         }
 
-                        salvar_dados_excel(df_tarefas, TAREFAS_PATH)  # Salva no Excel
+                        salvar_dados_excel(df_tarefas, TAREFAS_PATH1)  # Salva no Excel
                         st.session_state["projeto_selecionado"] = df_tarefas.loc[index].to_dict()
                         st.session_state["editando"] = False
                         st.success("Alterações salvas com sucesso!")
