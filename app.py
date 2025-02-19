@@ -1279,3 +1279,4 @@ if __name__ == "__main__":
         # Fechar conexão ao final
         if conn:
             conn.close()
+            
