@@ -354,61 +354,7 @@ def dashboard():
     st.divider()
 
     df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
-
-    # Exibir a tabela com capacidade de edição
-    edited_df = st.data_editor(
-        df_tarefas_ordenado,
-        column_config={
-            "id": {"disabled": True}  # Impede a edição da coluna 'id'
-        },
-        key="tarefas_editor"
-    )
-
-    # Verificar se houve alterações na tabela
-    if not edited_df.equals(df_tarefas_ordenado):
-        # Identificar linhas alteradas
-        for index, row in edited_df.iterrows():
-            original_row = df_tarefas_ordenado.iloc[index]
-            if not row.equals(original_row):
-                task_id = row['id']
-                updates = []
-                params = []
-                for col in edited_df.columns:
-                    # Ignorar colunas não editáveis ou 'id'
-                    if col not in ['id', 'Unidade', 'Area'] and row[col] != original_row[col]:
-                        updates.append(f"{col} = ?")
-                        params.append(row[col])
-                if updates:
-                    try:
-                        update_query = f"UPDATE tarefas SET {', '.join(updates)} WHERE id = ?"
-                        params.append(task_id)
-                        cursor.execute(update_query, params)
-                        conn.commit()
-                        st.success(f"Tarefa ID {task_id} atualizada com sucesso!")
-                    except sqlite3.Error as e:
-                        st.error(f"Erro ao atualizar tarefa ID {task_id}: {e}")
-
-    # Seção para excluir tarefa por ID
-    with st.form("excluir_tarefa_form"):
-        st.write("### Excluir Tarefa")
-        task_id_to_delete = st.number_input(
-            "ID da Tarefa para Excluir",
-            min_value=1,
-            step=1
-        )
-        submitted = st.form_submit_button("Excluir")
-        if submitted:
-            try:
-                cursor.execute("DELETE FROM tarefas WHERE id = ?", (task_id_to_delete,))
-                conn.commit()
-                st.success(f"Tarefa ID {task_id_to_delete} excluída com sucesso!")
-                # Recarregar os dados para atualizar a exibição
-                df_tarefas = carregar_tarefas()
-                df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
-            except sqlite3.Error as e:
-                st.error(f"Erro ao excluir tarefa: {e}")
-
-    df_tarefas = carregar_tarefas()
+    st.table(df_tarefas_ordenado)
 
 ########################################## REGISTRAR ##########################################
 
@@ -715,48 +661,50 @@ def tarefas_semanais():
                     st.session_state["projeto_selecionado"] = row.to_dict()
                 st.markdown(card, unsafe_allow_html=True)
 
-    # Verificar se um projeto foi selecionado
-    if "projeto_selecionado" in st.session_state:
-        tarefa = st.session_state["projeto_selecionado"]
+# Verificar se um projeto foi selecionado
+if "projeto_selecionado" in st.session_state:
+    tarefa = st.session_state["projeto_selecionado"]
 
-        # Criar as abas para exibir detalhes ou editar
-        tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"), key="aba_selecionada")
+    # Criar as abas para exibir detalhes ou editar
+    tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"), key="aba_selecionada")
 
-        if tabs == "Detalhes":
-            # Exibir detalhes do projeto selecionado
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: #f8f9fa;
-                    padding: 20px;
-                    border-radius: 10px;
-                    border: 1px solid #ddd;
-                    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-                    text-align: left;
-                    margin-top: 20px;">
-                    <h3 style="text-align: center;">📄 Detalhes da Atividade</h3>
-                    <strong>Data:</strong> {tarefa['Data']}<br>
-                    <strong>Setor:</strong> {tarefa['Setor']}<br>
-                    <strong>Colaborador:</strong> {tarefa['Colaborador']}<br>
-                    <strong>Tipo:</strong> {tarefa['Tipo']}<br>
-                    <strong>Status:</strong> {tarefa['Status']}
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
+    if tabs == "Detalhes":
+        # Exibir detalhes do projeto selecionado (mesmo código anterior)
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #f8f9fa;
+                padding: 20px;
+                border-radius: 10px;
+                border: 1px solid #ddd;
+                box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+                text-align: left;
+                margin-top: 20px;">
+                <h3 style="text-align: center;">📄 Detalhes da Atividade</h3>
+                <strong>Data:</strong> {tarefa['Data']}<br>
+                <strong>Setor:</strong> {tarefa['Setor']}<br>
+                <strong>Colaborador:</strong> {tarefa['Colaborador']}<br>
+                <strong>Tipo:</strong> {tarefa['Tipo']}<br>
+                <strong>Status:</strong> {tarefa['Status']}
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
-        # Edição de tarefas corrigida
-        if tabs == "Editar":
-            with st.form(key="edit_form"):
-                Data = st.date_input("Data", value=datetime.today().date())
-                Setor = st.number_input("Setor", value=tarefa["Setor"])
-                Colaborador = st.selectbox("Colaborador", options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
-                                         index=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
-                Tipo = st.selectbox("Tipo", options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"],
-                                  index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
-                Status = st.selectbox("Status", options=["A fazer", "Em andamento", "A validar", "Concluído"],
-                                    index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
+    # Edição de tarefas
+    if tabs == "Editar":
+        with st.form(key="edit_form"):
+            Data = st.date_input("Data", value=datetime.today().date())
+            Setor = st.number_input("Setor", value=tarefa["Setor"])
+            Colaborador = st.selectbox("Colaborador", options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
+                                     index=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
+            Tipo = st.selectbox("Tipo", options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"],
+                              index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
+            Status = st.selectbox("Status", options=["A fazer", "Em andamento", "A validar", "Concluído"],
+                                index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
 
+            col1, col2 = st.columns(2)
+            with col1:
                 if st.form_submit_button("Salvar Alterações"):
                     try:
                         cursor.execute('''
@@ -770,6 +718,21 @@ def tarefas_semanais():
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao atualizar: {str(e)}")
+            
+            # Adicionar botão de exclusão
+            with col2:
+                if st.form_submit_button("🗑️ Excluir Tarefa", type="secondary"):
+                    try:
+                        cursor.execute('''
+                            DELETE FROM tarefas 
+                            WHERE id=?
+                        ''', (tarefa['id'],))
+                        conn.commit()
+                        st.success("Tarefa excluída com sucesso!")
+                        st.session_state.pop("projeto_selecionado", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao excluir: {str(e)}")
 
 ########################################## REFORMA E PASSAGEM ##########################################
 
