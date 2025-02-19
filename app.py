@@ -353,7 +353,7 @@ def dashboard():
 
     st.divider()
 
-    # df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
+    df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
 
     # Exibir a tabela com capacidade de edição
     edited_df = st.data_editor(
@@ -409,7 +409,6 @@ def dashboard():
                 st.error(f"Erro ao excluir tarefa: {e}")
 
     df_tarefas = carregar_tarefas()
-    df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
 
 ########################################## REGISTRAR ##########################################
 
