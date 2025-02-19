@@ -860,19 +860,25 @@ def acompanhamento_reforma_passagem():
     st.write("### Métricas de Passagem")
     st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
 
-# Função para salvar alterações no banco de dados
-def salvar_alteracoes(df):
-    # conn = conectar_banco()
-    df.to_sql('auditoria', conn, if_exists='replace', index=False)
-    conn.close()
+########################################## AUDITORIA ##########################################
 
-# Função para excluir um registro do banco de dados
-def excluir_registro(id):
-    # conn = conectar_banco()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM auditoria WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
+# Função para calcular a aderência
+def calcular_aderencia(planejado, executado):
+    try:
+        planejado = float(planejado)
+        executado = float(executado)
+
+        if planejado == 0 and executado == 0:
+            return 100
+        if planejado == 0 or executado == 0:
+            return 0
+
+        menor = min(planejado, executado)
+        maior = max(planejado, executado)
+        return (menor / maior) * 100
+    
+    except ValueError:
+        return 100 if str(planejado).strip().lower() == str(executado).strip().lower() else 0
 
 # Página de Auditoria
 def auditoria():
@@ -892,7 +898,7 @@ def auditoria():
         )
 
     # Criar tabela formatada
-    colunas_tabela = ["id", "Unidade", "Setor"] + colunas_planejado + colunas_executado + [f"Aderência_{col.replace('_Planejado', '')}" for col in colunas_planejado]
+    colunas_tabela = ["Unidade", "Setor"] + colunas_planejado + colunas_executado + [f"Aderência_{col.replace('_Planejado', '')}" for col in colunas_planejado]
     df_tabela = df_auditoria[colunas_tabela]
 
     # Identificar colunas numéricas e formatá-las corretamente
@@ -902,50 +908,57 @@ def auditoria():
     for col in colunas_numericas:
         df_tabela[col] = df_tabela[col].apply(lambda x: f"{x:.0f}")
 
-    # Exibir gráfico de aderência (código anterior)
+    # Calcular a média de cada item de aderência (como "Aderência_Levantes", "Aderência_Bigodes", etc.)
+    colunas_aderencia = [col for col in df_auditoria.columns if "Aderência" in col]
+
+    df_media_itens = df_auditoria[colunas_aderencia].mean().reset_index()
+    df_media_itens.columns = ["Item", "Média Aderência (%)"]
+
+    # Dicionário para renomear os itens
+    renomear_itens = {
+        "Aderência_Levantes": "Levantes",
+        "Aderência_Bigodes": "Bigodes",
+        "Aderência_TipoPlantio": "Tipo de plantio",
+        "Aderência_TipoTerraco": "Tipo de terraço",
+        "Aderência_QuantidadeTerraco": "Quantidade de terraço",
+        "Aderência_LevantesDesmanche": "Levantes para desmanche",
+        "Aderência_BigodesDesmanche": "Bigodes para desmanche",
+        "Aderência_Carreadores": "Carreadores"
+    }
+
+    # Renomear os itens de acordo com o dicionário
+    df_media_itens["Item"] = df_media_itens["Item"].map(renomear_itens).fillna(df_media_itens["Item"])
+
+    # Criar gráfico de barras horizontais com a média de cada item
+    fig_aderencia = px.bar(df_media_itens, 
+                        x="Item",                 
+                        y="Média Aderência (%)",  
+                        text="Média Aderência (%)",
+                        orientation="v",         
+                        color="Item",             
+                        color_discrete_sequence=px.colors.qualitative.Set1,  
+                        )
+
+    # Ajustar a posição do rótulo para fora da barra
+    fig_aderencia.update_traces(textposition='outside')
+
+    # Ajustar os valores no gráfico para mostrar sem casas decimais
+    fig_aderencia.update_traces(texttemplate='%{text:.0f}%')
+
+    fig_aderencia.update_layout(
+        showlegend=False,  
+        xaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+        yaxis=dict(showgrid=False, showticklabels=False, showline=False, zeroline=False))
+
+    # Exibir gráfico
     st.write("### Aderência")
-    # ... (código do gráfico)
+    st.plotly_chart(fig_aderencia)
 
     st.divider()
 
-    # Exibir tabela editável
+    # Exibir tabela formatada
     st.write("### Planejado x Executado")
-    df_editado = st.data_editor(df_tabela, key="editor_auditoria")
-
-    # Botão para salvar alterações
-    if st.button("Salvar Alterações"):
-        # Atualizar o DataFrame original com as alterações
-        df_auditoria.update(df_editado)
-        # Salvar as alterações no banco de dados
-        salvar_alteracoes(df_auditoria)
-        st.success("Alterações salvas com sucesso!")
-
-    # Botão para excluir registro
-    st.write("### Excluir Registro")
-    id_excluir = st.number_input("ID do registro a ser excluído", min_value=1, step=1)
-    if st.button("Excluir Registro"):
-        excluir_registro(id_excluir)
-        st.success(f"Registro com ID {id_excluir} excluído com sucesso!")
-        # Recarregar os dados após exclusão
-        df_auditoria = carregar_auditoria()
-
-# Função para calcular a aderência
-def calcular_aderencia(planejado, executado):
-    try:
-        planejado = float(planejado)
-        executado = float(executado)
-
-        if planejado == 0 and executado == 0:
-            return 100
-        if planejado == 0 or executado == 0:
-            return 0
-
-        menor = min(planejado, executado)
-        maior = max(planejado, executado)
-        return (menor / maior) * 100
-    
-    except ValueError:
-        return 100 if str(planejado).strip().lower() == str(executado).strip().lower() else 0
+    st.dataframe(df_tabela)
 
 ########################################## EXTRAS ##########################################
 
