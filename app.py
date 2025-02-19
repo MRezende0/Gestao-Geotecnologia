@@ -565,14 +565,17 @@ def registrar_atividades():
 
         if submit:
             try:
+                # Convertendo a lista de auditores para uma string separada por vírgulas
+                auditores_str = ", ".join(Auditores)
+                
                 cursor.execute('''
                     INSERT INTO auditoria (Data, Auditores, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
                     TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
                     Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
                     Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
                     Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (str(Data), Auditores, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (str(Data), auditores_str, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
                     TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
                     Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
                     Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
