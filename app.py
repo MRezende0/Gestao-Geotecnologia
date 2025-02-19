@@ -67,7 +67,7 @@ cursor.execute('''
         Colaborador TEXT NOT NULL,
         Tipo TEXT NOT NULL,
         Status TEXT NOT NULL,
-        CHECK (Status IN ('A fazer', 'Em andamento', 'A validar', 'Concluído'))
+        CHECK (Status IN ('A fazer', 'Em andamento', 'A validar', 'Concluído')))
 ''')
 
 # Cria a tabela atividades_extra se não existir
@@ -1279,4 +1279,3 @@ if __name__ == "__main__":
         # Fechar conexão ao final
         if conn:
             conn.close()
-            
