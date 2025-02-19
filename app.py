@@ -353,8 +353,63 @@ def dashboard():
 
     st.divider()
 
+    # df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
+
+    # Exibir a tabela com capacidade de edição
+    edited_df = st.data_editor(
+        df_tarefas_ordenado,
+        column_config={
+            "id": {"disabled": True}  # Impede a edição da coluna 'id'
+        },
+        key="tarefas_editor"
+    )
+
+    # Verificar se houve alterações na tabela
+    if not edited_df.equals(df_tarefas_ordenado):
+        # Identificar linhas alteradas
+        for index, row in edited_df.iterrows():
+            original_row = df_tarefas_ordenado.iloc[index]
+            if not row.equals(original_row):
+                task_id = row['id']
+                updates = []
+                params = []
+                for col in edited_df.columns:
+                    # Ignorar colunas não editáveis ou 'id'
+                    if col not in ['id', 'Unidade', 'Area'] and row[col] != original_row[col]:
+                        updates.append(f"{col} = ?")
+                        params.append(row[col])
+                if updates:
+                    try:
+                        update_query = f"UPDATE tarefas SET {', '.join(updates)} WHERE id = ?"
+                        params.append(task_id)
+                        cursor.execute(update_query, params)
+                        conn.commit()
+                        st.success(f"Tarefa ID {task_id} atualizada com sucesso!")
+                    except sqlite3.Error as e:
+                        st.error(f"Erro ao atualizar tarefa ID {task_id}: {e}")
+
+    # Seção para excluir tarefa por ID
+    with st.form("excluir_tarefa_form"):
+        st.write("### Excluir Tarefa")
+        task_id_to_delete = st.number_input(
+            "ID da Tarefa para Excluir",
+            min_value=1,
+            step=1
+        )
+        submitted = st.form_submit_button("Excluir")
+        if submitted:
+            try:
+                cursor.execute("DELETE FROM tarefas WHERE id = ?", (task_id_to_delete,))
+                conn.commit()
+                st.success(f"Tarefa ID {task_id_to_delete} excluída com sucesso!")
+                # Recarregar os dados para atualizar a exibição
+                df_tarefas = carregar_tarefas()
+                df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
+            except sqlite3.Error as e:
+                st.error(f"Erro ao excluir tarefa: {e}")
+
+    df_tarefas = carregar_tarefas()
     df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
-    st.table(df_tarefas_ordenado)
 
 ########################################## REGISTRAR ##########################################
 
