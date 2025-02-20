@@ -57,11 +57,12 @@ add_custom_css()
 ########################################## FIREBASE CONFIGURAÇÃO ##########################################
 
 # Ler a chave do Firebase do ambiente (se estiver rodando no Streamlit Cloud)
-if "FIREBASE" in st.secrets and "KEY" in st.secrets["FIREBASE"]:
+if st.secrets.get("FIREBASE") and st.secrets["FIREBASE"].get("KEY"):
     firebase_key = json.loads(st.secrets["FIREBASE"]["KEY"])
     cred = credentials.Certificate(firebase_key)
 else:
-    cred = credentials.Certificate("firebase_key.json")  # Para rodar localmente
+    # Se estiver rodando localmente e o arquivo existir
+    cred = credentials.Certificate("firebase_key.json")
 
 # Inicializar Firebase se ainda não foi inicializado
 if not firebase_admin._apps:
