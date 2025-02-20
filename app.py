@@ -75,13 +75,22 @@ db = firestore.client()
 
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_tarefas():
-    docs = db.collection("tarefas").order_by("Data", direction=firestore.Query.DESCENDING).limit(5).stream()
-    data = []
-    for doc in docs:
-        doc_data = doc.to_dict()
-        doc_data["id"] = doc.id  # Adiciona o ID do documento
-        data.append(doc_data)
-    return pd.DataFrame(data) if data else pd.DataFrame()
+    try:
+        st.write("Carregando tarefas...")  # Debug
+        docs = db.collection("tarefas").order_by("Data", direction=firestore.Query.DESCENDING).limit(100).stream()
+        
+        data = []
+        for doc in docs:
+            doc_data = doc.to_dict()
+            doc_data["id"] = doc.id  # Adiciona o ID do documento
+            data.append(doc_data)
+        
+        st.write(f"{len(data)} tarefas carregadas com sucesso!")  # Debug
+        return pd.DataFrame(data) if data else pd.DataFrame()
+    
+    except Exception as e:
+        st.error(f"Erro ao carregar tarefas: {str(e)}")
+        return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
 
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_atividades_extras():
