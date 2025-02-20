@@ -75,17 +75,17 @@ db = firestore.client()
 ########################################## BANCO DE DADOS (Firestore) ##########################################
 
 def carregar_tarefas():
-    docs = db.collection("tarefas").stream()
+    docs = db.collection("tarefas").limit(500).stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 def carregar_atividades_extras():
-    docs = db.collection("atividades_extras").stream()
+    docs = db.collection("atividades_extras").limit(500).stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 def carregar_auditoria():
-    docs = db.collection("auditoria").stream()
+    docs = db.collection("auditoria").limit(500).stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
