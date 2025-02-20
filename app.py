@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 import glob
 import sqlite3
+from datetime import timedelta
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -1110,72 +1111,36 @@ def filtros_dashboard(df):
 
     return df_tarefas
 
-# Função para filtros da aba Dashboard
 def filtros_atividades(df_tarefas):
-
-    st.sidebar.title("Filtros")
-
-    # Filtro de Data
-    # Garantir que a coluna "Data" está em formato datetime
-    df_tarefas["Data"] = pd.to_datetime(df_tarefas["Data"], errors='coerce')
-
-    # Definindo o intervalo de datas
-    data_min = df_tarefas["Data"].min().date()  # Convertendo para date
-    data_max = df_tarefas["Data"].max().date()  # Convertendo para date
+    st.sidebar.header("Filtros")
     
-    # Barra deslizante para selecionar o intervalo de datas
+    # Converter coluna Data para datetime
+    df_tarefas['Data'] = pd.to_datetime(df_tarefas['Data'], errors='coerce')
+    
+    # Verificar se há datas válidas
+    if not df_tarefas['Data'].empty and df_tarefas['Data'].notnull().any():
+        min_date = df_tarefas['Data'].min().to_pydatetime()
+        max_date = df_tarefas['Data'].max().to_pydatetime()
+    else:
+        # Datas padrão se não houver dados
+        min_date = datetime.today() - timedelta(days=30)
+        max_date = datetime.today()
+    
+    # Criar slider de datas
     data_inicio, data_fim = st.sidebar.slider(
-        "Intervalo de datas",
-        min_value=data_min,
-        max_value=data_max,
-        value=(data_min, data_max),
+        "Selecione o período:",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
         format="DD/MM/YYYY"
     )
-
-    # Convertendo novamente para datetime para aplicar no filtro
-    data_inicio = pd.to_datetime(data_inicio)
-    data_fim = pd.to_datetime(data_fim)
-
-    # Filtrando o DataFrame com base nas datas selecionadas
-    df_tarefas = df_tarefas[(df_tarefas["Data"] >= data_inicio) & 
-                                   (df_tarefas["Data"] <= data_fim)]
     
-    # Filtro de Colaborador
-    colaboradores_unicos = df_tarefas["Colaborador"].unique()  # Obter a lista de colaboradores únicos
-    colaboradores_unicos = ["Todos"] + list(colaboradores_unicos)  # Adiciona a opção "Todos"
+    # Aplicar filtros
+    df_tarefas = df_tarefas[
+        (df_tarefas['Data'] >= data_inicio) & 
+        (df_tarefas['Data'] <= data_fim)
+    ]
     
-    # Selecionando apenas "Todos" inicialmente
-    colaboradores_selecionados = st.sidebar.multiselect(
-        "Colaboradores",
-        options=colaboradores_unicos,
-        default=["Todos"]  # Seleciona apenas "Todos" por padrão
-    )
-
-        # Filtro de Tipo com opção de "Todos"
-    tipos_unicos = df_tarefas["Tipo"].unique()  # Obter a lista de tipos únicos
-    tipos_unicos = ["Todos"] + list(tipos_unicos)  # Adiciona a opção "Todos"
-    
-    # Selecionando apenas "Todos" inicialmente
-    tipos_selecionados = st.sidebar.multiselect(
-        "Tipos de Atividade",
-        options=tipos_unicos,
-        default=["Todos"]  # Seleciona apenas "Todos" por padrão
-    )
-
-    # Filtrando o DataFrame com base no(s) colaborador(es) selecionado(s)
-    if "Todos" in colaboradores_selecionados:
-        # Se "Todos" estiver selecionado, não filtra por colaborador
-        df_tarefas = df_tarefas
-    else:
-        df_tarefas = df_tarefas[df_tarefas["Colaborador"].isin(colaboradores_selecionados)]
-    
-    # Filtrando o DataFrame com base no(s) tipo(s) selecionado(s)
-    if "Todos" in tipos_selecionados:
-        # Se "Todos" estiver selecionado, não filtra por tipo
-        df_tarefas = df_tarefas
-    else:
-        df_tarefas = df_tarefas[df_tarefas["Tipo"].isin(tipos_selecionados)]
-
     return df_tarefas
 
 # Função para filtros da aba Extras
