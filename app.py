@@ -102,7 +102,7 @@ def carregar_auditoria():
 # Criando um documento na coleção "tarefas"
 doc_ref = db.collection("tarefas").document("exemplo_tarefa")
 doc_ref.set({
-    "Setor": "Agrícola",
+    "Setor": "1",
     "Descrição": "Teste de inserção",
     "Status": "Pendente"
 })
