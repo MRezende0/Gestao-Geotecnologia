@@ -94,6 +94,7 @@ def carregar_reforma():
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
+@st.cache_data(ttl=600)  # Cache por 10 minutos
 def carregar_passagem():
     docs = db.collection("passagem").stream()
     data = [doc.to_dict() for doc in docs]
