@@ -7,6 +7,7 @@ import glob
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
+import uuid
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -531,6 +532,26 @@ def registrar_atividades():
                         "Data": str(Data),
                         "Auditores": Auditores,
                         "Unidade": Unidade,
+                        "Setor": Setor,
+                        "TipoPlantio_Planejado": TipoPlantio_Planejado,
+                        "TipoPlantio_Executado": TipoPlantio_Executado,
+                        "TipoTerraco_Planejado": TipoTerraco_Planejado,
+                        "TipoTerraco_Executado": TipoTerraco_Executado,
+                        "QuantidadeTerraco_Planejado": QuantidadeTerraco_Planejado,
+                        "QuantidadeTerraco_Executado": QuantidadeTerraco_Executado,
+                        "Levantes_Planejado": Levantes_Planejado,
+                        "Levantes_Executado": Levantes_Executado,
+                        "LevantesDesmanche_Planejado": LevantesDesmanche_Planejado,
+                        "LevantesDesmanche_Executado": LevantesDesmanche_Executado,
+                        "Bigodes_Planejado": Bigodes_Planejado,
+                        "Bigodes_Executado": Bigodes_Executado,
+                        "BigodesDesmanche_Planejado": BigodesDesmanche_Planejado,
+                        "BigodesDesmanche_Executado": BigodesDesmanche_Executado,
+                        "Carreadores_Planejado": Carreadores_Planejado,
+                        "Carreadores_Executado": Carreadores_Executado,
+                        "Patios_Projetado": Patios_Projetado,
+                        "Patios_Executado": Patios_Executado,
+                        "Observacao": Observacao
                     })
 
                     st.success("Auditoria registrada com sucesso!")
