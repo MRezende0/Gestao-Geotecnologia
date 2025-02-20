@@ -73,62 +73,32 @@ db = firestore.client()
 
 ########################################## BANCO DE DADOS (Firestore) ##########################################
 
-# Para operações de leitura e gravação, vamos definir funções que interagem com o Firestore.
 def carregar_tarefas():
-    """Carrega os documentos da coleção 'tarefas' e adiciona o id do documento ao DataFrame."""
     docs = db.collection("tarefas").stream()
-    data = []
-    for doc in docs:
-        temp = doc.to_dict()
-        # Adiciona o id do documento (útil para ordenação, edição etc.)
-        temp["id"] = doc.id
-        data.append(temp)
+    data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 def carregar_atividades_extras():
-    """Carrega todos os documentos da coleção 'atividades_extras' e retorna um DataFrame."""
     docs = db.collection("atividades_extras").stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 def carregar_auditoria():
-    """Carrega todos os documentos da coleção 'auditoria' e retorna um DataFrame."""
     docs = db.collection("auditoria").stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
+def carregar_reforma():
+    docs = db.collection("reforma").stream()
+    data = [doc.to_dict() for doc in docs]
+    return pd.DataFrame(data) if data else pd.DataFrame()
+
+def carregar_passagem():
+    docs = db.collection("passagem").stream()
+    data = [doc.to_dict() for doc in docs]
+    return pd.DataFrame(data) if data else pd.DataFrame()
+
 ########################################## DADOS ##########################################
-
-# Criando um documento na coleção "tarefas"
-doc_ref = db.collection("tarefas").document("exemplo_tarefa")
-doc_ref.set({
-    "Setor": "1",
-    "Descrição": "Teste de inserção",
-    "Status": "Pendente"
-})
-
-tarefas = [
-    {"Setor": "1", "Descrição": "Aplicação de insumos", "Status": "Concluído"},
-    {"Setor": "2", "Descrição": "Revisão de máquinas", "Status": "Pendente"},
-    {"Setor": "3", "Descrição": "Análise de custos", "Status": "Em andamento"},
-]
-
-for tarefa in tarefas:
-    db.collection("tarefas").add(tarefa)  # Adiciona automaticamente com ID único
-
-tarefas_ref = db.collection("tarefas").stream()
-tarefas = [{doc.id: doc.to_dict()} for doc in tarefas_ref]
-
-import streamlit as st
-st.write("Tarefas no Firestore:", tarefas)
-
-
-
-
-
-
-
-
 
 # Caminho dos arquivos CSV/Excel para dados auxiliares (se necessário)
 BASE_PATH = "dados/base.csv"
@@ -152,21 +122,18 @@ def carregar_dados(caminho, colunas=None, aba=None):
             raise ValueError(f"Formato de arquivo {extensao} não suportado!")
     else:
         return pd.DataFrame(columns=colunas)
-    
+
+
+df_passagem = carregar_passagem()
+df_reforma = carregar_reforma()
+df_tarefas = carregar_tarefas()
+df_extras = carregar_atividades_extras()
+df_auditoria = carregar_auditoria()
+
 # Carrega os dados auxiliares
-df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Primeira aba
-df_reforma = carregar_dados(REF_PAS_PATH, aba=1)    # Segunda aba
 df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
 df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
-df_extras = carregar_dados(EXTRAS_PATH, ["Data", "Colaborador", "Solicitante", "SetorSolicitante", "Atividade", "Horas", "Descrição"])
 df_ref_pas = carregar_dados(REF_PAS_PATH, [""])
-df_auditoria = carregar_dados(AUDITORIA_PATH, [
-    "Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", 
-    "TipoTerraco_Planejado", "TipoTerraco_Executado", "QuantidadeTerraco_Planejado", "QuantidadeTerraco_Executado", 
-    "Levantes_Planejado", "Levantes_Executado", "LevantesDesmanche_Planejado", "LevantesDesmanche_Executado", 
-    "Bigodes_Planejado", "Bigodes_Executado", "BigodesDesmanche_Planejado", "BigodesDesmanche_Executado", 
-    "Carreadores_Planejado", "Carreadores_Executado", "Patios_Projetado", "Patios_Executado", "Observacao"
-])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
 # Converter tipos das colunas dos dados auxiliares, se necessário
@@ -383,18 +350,18 @@ def registrar_atividades():
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.button("Registrar")
 
-        if submit:
-            try:
-                db.collection("tarefas").add({
-                    "Data": str(Data),
-                    "Setor": Setor,
-                    "Colaborador": Colaborador,
-                    "Tipo": Tipo,
-                    "Status": Status
-                })
-                st.success("Tarefa registrada com sucesso!")
-            except Exception as e:
-                st.error(f"Erro ao registrar tarefa: {e}")
+            if submit:
+                try:
+                    db.collection("tarefas").add({
+                        "Data": str(Data),
+                        "Setor": Setor,
+                        "Colaborador": Colaborador,
+                        "Tipo": Tipo,
+                        "Status": Status
+                    })
+                    st.success("Tarefa registrada com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao registrar tarefa: {e}")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
@@ -408,58 +375,46 @@ def registrar_atividades():
             Horas = st.time_input("Horas de trabalho").strftime("%H:%M:%S")  # Converte para string
             submit = st.form_submit_button("Registrar")
 
-        if submit:
-            try:
-                cursor.execute('''
-                    INSERT INTO atividades_extras (Data, Colaborador, Solicitante, SetorSolicitante, Atividade, Horas)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (str(Data), Colaborador, Solicitante, SetorSolicitante, Atividade, Horas))
-                conn.commit()
-                st.success("Atividade Extra registrada com sucesso!")
-            except Exception as e:
-                st.error(f"Erro ao registrar: {e}")
+            if submit:
+                try:
+                    db.collection("atividades_extras").add({
+                        "Data": str(Data),
+                        "Colaborador": Colaborador,
+                        "Solicitante": Solicitante,
+                        "SetorSolicitante": SetorSolicitante,
+                        "Atividade": Atividade,
+                        "Horas": Horas
+                    })
+                    st.success("Atividade Extra registrada com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao registrar: {e}")
 
     # Formulário para Reforma e Passagem
     elif tipo_atividade == "Reforma e Passagem":
-
-        # Carregar os dados das abas de Reforma e Passagem
-        df_reforma = carregar_dados(REF_PAS_PATH, aba="Reforma")
-        df_passagem = carregar_dados(REF_PAS_PATH, aba="Passagem")
-
-        # Definir o df_editar antes de usá-lo
-        df_editar = pd.DataFrame()  # Inicializando com um DataFrame vazio
-
-        # Seleção da aba para edição
         opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Passagem"])
-
-        # Atribuir df_editar corretamente com base na aba selecionada
+        
+        # Carregar dados
         if opcao == "Reforma":
-            df_editar = df_reforma
-        elif opcao == "Passagem":
-            df_editar = df_passagem
-
-        # Exibir o editor de dados baseado na aba selecionada
-        df_editado = st.data_editor(df_editar, num_rows="dynamic")
+            df = carregar_reforma()
+        else:
+            df = carregar_passagem()
+            
+        df_editado = st.data_editor(df, num_rows="dynamic")
 
         # Botão para salvar alterações no Excel
         if st.button("Salvar Alterações"):
-            if opcao == "Reforma":
-                # Atualizar o df_reforma com os dados editados
-                df_reforma = df_editado
-
-                # Salvar as alterações de volta na aba "Reforma" do arquivo Excel
-                with pd.ExcelWriter(REF_PAS_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-                    df_reforma.to_excel(writer, sheet_name="Reforma", index=False)
-                st.success("Dados da aba Reforma atualizados com sucesso!")
-
-            elif opcao == "Passagem":
-                # Atualizar o df_passagem com os dados editados
-                df_passagem = df_editado
-
-                # Salvar as alterações de volta na aba "Passagem" do arquivo Excel
-                with pd.ExcelWriter(REF_PAS_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-                    df_passagem.to_excel(writer, sheet_name="Passagem", index=False)
-                st.success("Dados da aba Passagem atualizados com sucesso!")
+            # Apagar todos os documentos existentes
+            batch = db.batch()
+            coll_ref = db.collection(opcao.lower())
+            docs = coll_ref.stream()
+            for doc in docs:
+                batch.delete(doc.reference)
+            batch.commit()
+            
+            # Adicionar novos documentos
+            for _, row in df_editado.iterrows():
+                coll_ref.add(row.to_dict())
+            st.success("Dados atualizados com sucesso!")
 
     elif tipo_atividade == "Pós-Aplicação":
         st.header("Upload de Arquivo - Pós-Aplicação")
@@ -570,27 +525,17 @@ def registrar_atividades():
             Observacao = st.text_area("Observação")
             submit = st.form_submit_button("Registrar")
 
-        if submit:
-            try:
-                # Convertendo a lista de auditores para uma string separada por vírgulas
-                auditores_str = ", ".join(Auditores)
-                
-                cursor.execute('''
-                    INSERT INTO auditoria (Data, Auditores, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
-                    TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
-                    Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
-                    Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
-                    Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (str(Data), auditores_str, Unidade, Setor, TipoPlantio_Planejado, TipoPlantio_Executado, 
-                    TipoTerraco_Planejado, TipoTerraco_Executado, QuantidadeTerraco_Planejado, QuantidadeTerraco_Executado,
-                    Levantes_Planejado, Levantes_Executado, LevantesDesmanche_Planejado, LevantesDesmanche_Executado,
-                    Bigodes_Planejado, Bigodes_Executado, BigodesDesmanche_Planejado, BigodesDesmanche_Executado,
-                    Carreadores_Planejado, Carreadores_Executado, Patios_Projetado, Patios_Executado, Observacao))
-                conn.commit()
-                st.success("Auditoria registrada com sucesso!")
-            except Exception as e:
-                st.error(f"Erro ao registrar: {e}")
+            if submit:
+                try:
+                    db.collection("auditoria").add({
+                        "Data": str(Data),
+                        "Auditores": Auditores,
+                        "Unidade": Unidade,
+                    })
+
+                    st.success("Auditoria registrada com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao registrar: {e}")
 
 ########################################## ATIVIDADES ##########################################
 
@@ -714,27 +659,23 @@ if "projeto_selecionado" in st.session_state:
             with col1:
                 if st.form_submit_button("Salvar Alterações"):
                     try:
-                        cursor.execute('''
-                            UPDATE tarefas 
-                            SET Data=?, Setor=?, Colaborador=?, Tipo=?, Status=?
-                            WHERE id=?
-                        ''', (str(Data), Setor, Colaborador, Tipo, Status, tarefa['id']))
-                        conn.commit()
+                        doc_ref = db.collection("tarefas").document(tarefa['id'])
+                        doc_ref.update({
+                            "Data": str(Data),
+                            "Setor": Setor,
+                            "Colaborador": Colaborador,
+                            "Tipo": Tipo,
+                            "Status": Status
+                        })
                         st.success("Atividade atualizada com sucesso!")
                         st.session_state.pop("projeto_selecionado", None)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao atualizar: {str(e)}")
-            
-            # Adicionar botão de exclusão
-            with col2:
-                if st.form_submit_button("🗑️ Excluir Tarefa", type="secondary"):
+                
+                if st.form_submit_button("🗑️ Excluir Tarefa"):
                     try:
-                        cursor.execute('''
-                            DELETE FROM tarefas 
-                            WHERE id=?
-                        ''', (tarefa['id'],))
-                        conn.commit()
+                        db.collection("tarefas").document(tarefa['id']).delete()
                         st.success("Tarefa excluída com sucesso!")
                         st.session_state.pop("projeto_selecionado", None)
                         st.rerun()
@@ -1047,7 +988,8 @@ def atividades_extras():
 # Função para filtros da aba Dashboard
 def filtros_dashboard(df):
     df = df.copy()  # Trabalhar com uma cópia para não afetar o DataFrame original
-    df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
+    if not df.empty:
+        df['Data'] = pd.to_datetime(df['Data'])
 
     st.sidebar.title("Filtros")
 
