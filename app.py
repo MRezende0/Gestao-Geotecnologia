@@ -4,7 +4,6 @@ import plotly.express as px
 import os
 from datetime import datetime
 import glob
-import sqlite3
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
@@ -55,7 +54,7 @@ def add_custom_css():
 
 add_custom_css()
 
-########################################## BANCO DE DADOS ##########################################
+########################################## FIREBASE CONFIGURAÇÃO ##########################################
 
 # Ler a chave do Firebase do ambiente (se estiver rodando no Streamlit Cloud)
 if "FIREBASE_KEY" in os.environ:
@@ -64,91 +63,44 @@ if "FIREBASE_KEY" in os.environ:
 else:
     cred = credentials.Certificate("firebase_key.json")  # Para rodar localmente
 
-# Inicializar Firebase
+# Inicializar Firebase se ainda não foi inicializado
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
+# Conectar ao Firestore
+db = firestore.client()
 
+########################################## BANCO DE DADOS (Firestore) ##########################################
 
+# Para operações de leitura e gravação, vamos definir funções que interagem com o Firestore.
+# Não há necessidade de "criar tabelas" pois o Firestore trabalha com coleções dinâmicas.
 
-
-# Conecta (ou cria) o banco de dados
-conn = sqlite3.connect('dados/dados.db', check_same_thread=False)
-cursor = conn.cursor()
-
-# Cria a tabela tarefas se não existir
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS tarefas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Data DATE NOT NULL,
-        Setor INTEGER NOT NULL,
-        Colaborador TEXT NOT NULL,
-        Tipo TEXT NOT NULL,
-        Status TEXT NOT NULL,
-        CHECK (Status IN ('A fazer', 'Em andamento', 'A validar', 'Concluído')))
-''')
-
-# Cria a tabela atividades_extra se não existir
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS atividades_extras (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Data TEXT,
-        Colaborador TEXT,
-        Solicitante TEXT,
-        SetorSolicitante TEXT,
-        Atividade TEXT,
-        Horas TEXT
-    )
-''')
-
-# Cria a tabela auditoria se não existir
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS auditoria (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Data TEXT,
-        Auditores TEXT,
-        Unidade TEXT,
-        Setor INTEGER,
-        TipoPlantio_Planejado TEXT,
-        TipoPlantio_Executado TEXT,
-        TipoTerraco_Planejado TEXT,
-        TipoTerraco_Executado TEXT,
-        QuantidadeTerraco_Planejado TEXT,
-        QuantidadeTerraco_Executado TEXT,
-        Levantes_Planejado INTEGER,
-        Levantes_Executado INTEGER,
-        LevantesDesmanche_Planejado INTEGER,
-        LevantesDesmanche_Executado INTEGER,
-        Bigodes_Planejado INTEGER,
-        Bigodes_Executado INTEGER,
-        BigodesDesmanche_Planejado INTEGER,
-        BigodesDesmanche_Executado INTEGER,
-        Carreadores_Planejado TEXT,
-        Carreadores_Executado TEXT,
-        Patios_Projetado INTEGER,
-        Patios_Executado INTEGER,
-        Observacao TEXT
-    )
-''')
-
-# Salva as mudanças no banco de dados
-conn.commit()
-
-# Função para carregar tarefas do banco de dados
 def carregar_tarefas():
-    return pd.read_sql_query("SELECT * FROM tarefas", conn)
+    """Carrega os documentos da coleção 'tarefas' e adiciona o id do documento ao DataFrame."""
+    docs = db.collection("tarefas").stream()
+    data = []
+    for doc in docs:
+        temp = doc.to_dict()
+        # Adiciona o id do documento (útil para ordenação, edição etc.)
+        temp["id"] = doc.id
+        data.append(temp)
+    return pd.DataFrame(data) if data else pd.DataFrame()
 
-# Função para carregar atividades extra do banco de dados
 def carregar_atividades_extras():
-    return pd.read_sql_query("SELECT * FROM atividades_extras", conn)
+    """Carrega todos os documentos da coleção 'atividades_extras' e retorna um DataFrame."""
+    docs = db.collection("atividades_extras").stream()
+    data = [doc.to_dict() for doc in docs]
+    return pd.DataFrame(data) if data else pd.DataFrame()
 
-# Função para carregar auditorias do banco de dados
 def carregar_auditoria():
-    return pd.read_sql_query("SELECT * FROM auditoria", conn)
+    """Carrega todos os documentos da coleção 'auditoria' e retorna um DataFrame."""
+    docs = db.collection("auditoria").stream()
+    data = [doc.to_dict() for doc in docs]
+    return pd.DataFrame(data) if data else pd.DataFrame()
 
-########################################## DADOS ########################################## 
+########################################## DADOS ##########################################
 
-# Caminho dos arquivos CSV
+# Caminho dos arquivos CSV/Excel para dados auxiliares (se necessário)
 BASE_PATH = "dados/base.csv"
 EXTRAS_PATH = "dados/extras.csv"
 POS_PATH = "dados/pos_aplicacao.xlsx"
@@ -157,7 +109,7 @@ AUDITORIA_PATH = "dados/auditoria.csv"
 PASTA_POS = "dados/pos-aplicacao"
 ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
-# Função para carregar dados de CSV ou Excel
+# Função para carregar dados de CSV ou Excel (usada para dados auxiliares)
 def carregar_dados(caminho, colunas=None, aba=None):
     if os.path.exists(caminho):
         _, extensao = os.path.splitext(caminho)
@@ -171,12 +123,9 @@ def carregar_dados(caminho, colunas=None, aba=None):
     else:
         return pd.DataFrame(columns=colunas)
     
-# Carrega as duas abas
-df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Carrega a primeira aba
-df_reforma = carregar_dados(REF_PAS_PATH, aba=1)  # Carrega a segunda aba
-
-# Carrega os dados iniciais
-df_tarefas = carregar_tarefas()
+# Carrega os dados auxiliares
+df_passagem = carregar_dados(REF_PAS_PATH, aba=0)  # Primeira aba
+df_reforma = carregar_dados(REF_PAS_PATH, aba=1)    # Segunda aba
 df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
 df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
 df_extras = carregar_dados(EXTRAS_PATH, ["Data", "Colaborador", "Solicitante", "SetorSolicitante", "Atividade", "Horas", "Descrição"])
@@ -190,39 +139,49 @@ df_auditoria = carregar_dados(AUDITORIA_PATH, [
 ])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
-# Converter tipo da coluna Setor
-df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
+# Converter tipos das colunas dos dados auxiliares, se necessário
+df_tarefas = carregar_tarefas()
+if not df_tarefas.empty:
+    df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
 df_base["Setor"] = df_base["Setor"].astype(int)
 
-# Mesclar bases de dados
+# Mesclar dados auxiliares com tarefas, se necessário
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
-
-# Verificar se a mesclagem funcionou
 if 'Area' not in df_tarefas.columns or 'Unidade' not in df_tarefas.columns:
     st.error("Erro: As colunas 'Area' e 'Unidade' não foram adicionadas corretamente.")
-    st.stop()  # Interrompe a execução se houver erro
+    st.stop()
 
-# Preencher valores nulos após a mesclagem
-df_tarefas['Area'] = df_tarefas['Area'].fillna(0)  # Substituir NaN por 0
-df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')  # Substituir NaN por 'Desconhecida'
+df_tarefas['Area'] = df_tarefas['Area'].fillna(0)
+df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
 
 ########################################## DASHBOARD ##########################################
 
 def dashboard():
     st.title("📊 Dashboard")
+    
+    # Carrega os dados das tarefas do Firestore
     df_tarefas = carregar_tarefas()
+    
+    # Se o DataFrame estiver vazio, exibe mensagem e retorna
+    if df_tarefas.empty:
+        st.info("Nenhuma tarefa registrada.")
+        return
 
-    # Mesclar com df_base para obter Area e Unidade
+    # Mesclar com df_base (dados auxiliares vindos de CSV) para obter 'Area' e 'Unidade'
     df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
+    # Certifique-se de que a coluna 'Setor' está com o mesmo tipo em ambos os DataFrames
+    df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
+    df_base["Setor"] = df_base["Setor"].astype(int)
+    
     df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
-
+    
     # Tratar valores nulos
     df_tarefas['Area'] = df_tarefas['Area'].fillna(0)
     df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
-
-    # Aplicando os filtros e retornando o DataFrame filtrado
+    
+    # Aplicar filtros (supondo que a função filtros_dashboard() esteja definida)
     df_tarefas = filtros_dashboard(df_tarefas)
-
+    
     # Exibe métricas
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -232,14 +191,14 @@ def dashboard():
     with col2:
         st.metric("Quantidade de Atividades", df_tarefas['Colaborador'].size)
     with col3:
-        st.metric("Colaboradores", df_tarefas['Colaborador'].unique().size)
-
+        st.metric("Colaboradores", df_tarefas['Colaborador'].nunique())
+    
     st.divider()
-
-    # Layout com 2 colunas e 3 linhas
+    
+    # Layout com 2 colunas para gráficos
     col1, linha, col2 = st.columns([4, 0.5, 4])
-
-    # Linha 1 - Gráficos de Atividades por Colaborador e Projetos por Tipo
+    
+    # Gráfico: Atividades por Colaborador
     with col1:
         st.subheader("Atividades por Colaborador")
         df_contagem_responsavel = df_tarefas.groupby("Colaborador")["Tipo"].count().reset_index()
@@ -260,7 +219,8 @@ def dashboard():
             xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False)
         )
         st.plotly_chart(fig_responsavel)
-
+    
+    # Gráfico: Quantidade de Projetos por Tipo
     with col2:
         st.subheader("Quantidade de Projetos por Tipo")
         df_contagem_tipo = df_tarefas.groupby("Tipo")["Colaborador"].count().reset_index()
@@ -280,7 +240,8 @@ def dashboard():
             yaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
         )
         st.plotly_chart(fig_tipo)
-
+    
+    # Gráfico: Status dos Projetos
     with col1:
         st.subheader("Status dos Projetos")
         df_contagem_status = df_tarefas.groupby("Status")["Tipo"].count().reset_index()
@@ -301,7 +262,8 @@ def dashboard():
             xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
         )
         st.plotly_chart(fig_status)
-
+    
+    # Gráfico: Projetos por Unidade
     with col2:
         st.subheader("Projetos por Unidade")
         df_contagem_unidade = df_tarefas.groupby("Unidade")["Tipo"].count().reset_index()
@@ -315,38 +277,31 @@ def dashboard():
             labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
         )
         st.plotly_chart(fig_pizza)
-
+    
     st.divider()
-
-    # Gráfico de Pós-Aplicação
+    
+    # Gráfico de Mapas de Pós-Aplicação
     st.subheader("Mapas de Pós-Aplicação")
-
     ordem_meses = ["Todos", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
-    # Filtro de Mês
+    
     mes_selecionado = st.selectbox(
         "Selecione o Mês",
-        options=ordem_meses,  # Lista de meses ordenados
-        index=0  # Define o primeiro mês como padrão
+        options=ordem_meses,
+        index=0
     )
-
-    # Converter DATA para datetime e criar coluna MÊS
+    
+    # Converter coluna DATA de df_pos para datetime e criar coluna MÊS
     df_pos["DATA"] = pd.to_datetime(df_pos["DATA"], errors="coerce")
     df_pos["MÊS"] = df_pos["DATA"].dt.strftime("%B").str.capitalize()
-
-    # Verificar se o filtro "Todos" foi selecionado
+    
     if mes_selecionado != "Todos":
-        # Filtrar dados para o mês selecionado
         df_filtrado = df_pos[df_pos["MÊS"] == mes_selecionado]
     else:
-        # Caso "Todos" seja selecionado, não filtra os dados
         df_filtrado = df_pos
-
+    
     df_unico = df_filtrado.drop_duplicates(subset=["MÊS", "SETOR"])
-
     df_contagem = df_unico.groupby("MÊS").size().reset_index(name="QUANTIDADE")
-
-    # Verificar a estrutura de df_contagem antes de renomear colunas
+    
     if df_contagem.shape[1] == 2:  
         df_contagem.columns = ["MÊS", "QUANTIDADE"]
     else:
@@ -368,9 +323,12 @@ def dashboard():
         xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
     )
     st.plotly_chart(fig_mes)
-
+    
     st.divider()
-
+    
+    # Ordenar e exibir a tabela de tarefas
+    # Se a coluna "id" for apenas o Firestore document id (string), pode ser ordenada ou exibida conforme necessário.
+    # Caso deseje ordenar por data ou outro campo, adapte o sort_values() conforme necessário.
     df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
     st.table(df_tarefas_ordenado)
 
@@ -388,24 +346,25 @@ def registrar_atividades():
     # Formulário para Atividade Semanal
     if tipo_atividade == "Atividade Semanal":
         with st.form("form_atividade_semanal"):
-            # Adicionar campos Unidade e Area
             Data = st.date_input("Data")
-            Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
+            Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
-            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"])
+            Tipo = st.selectbox("Tipo", ["", "Projeto", "Mapa", "Auditoria", "Outro"])
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
-            submit = st.form_submit_button("Registrar")
+            submit = st.button("Registrar")
 
         if submit:
             try:
-                cursor.execute('''
-                    INSERT INTO tarefas (Data, Setor, Colaborador, Tipo, Status)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (str(Data), Setor, Colaborador, Tipo, Status))
-                conn.commit()
-                st.success("Atividade registrada com sucesso!")
+                db.collection("tarefas").add({
+                    "Data": str(Data),
+                    "Setor": Setor,
+                    "Colaborador": Colaborador,
+                    "Tipo": Tipo,
+                    "Status": Status
+                })
+                st.success("Tarefa registrada com sucesso!")
             except Exception as e:
-                st.error(f"Erro ao registrar: {str(e)}")
+                st.error(f"Erro ao registrar tarefa: {e}")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
