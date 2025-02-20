@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import glob
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -1226,7 +1226,5 @@ if __name__ == "__main__":
     try:
         if st.session_state["logged_in"]:
             main_app()
-    finally:
-        # Fechar conexão ao final
-        if conn:
-            conn.close()
+    except Exception as e:
+        st.error(f"Erro ao executar a aplicação: {e}")
