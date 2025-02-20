@@ -74,8 +74,6 @@ db = firestore.client()
 ########################################## BANCO DE DADOS (Firestore) ##########################################
 
 # Para operações de leitura e gravação, vamos definir funções que interagem com o Firestore.
-# Não há necessidade de "criar tabelas" pois o Firestore trabalha com coleções dinâmicas.
-
 def carregar_tarefas():
     """Carrega os documentos da coleção 'tarefas' e adiciona o id do documento ao DataFrame."""
     docs = db.collection("tarefas").stream()
@@ -100,6 +98,37 @@ def carregar_auditoria():
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 ########################################## DADOS ##########################################
+
+# Criando um documento na coleção "tarefas"
+doc_ref = db.collection("tarefas").document("exemplo_tarefa")
+doc_ref.set({
+    "Setor": "Agrícola",
+    "Descrição": "Teste de inserção",
+    "Status": "Pendente"
+})
+
+tarefas = [
+    {"Setor": "1", "Descrição": "Aplicação de insumos", "Status": "Concluído"},
+    {"Setor": "2", "Descrição": "Revisão de máquinas", "Status": "Pendente"},
+    {"Setor": "3", "Descrição": "Análise de custos", "Status": "Em andamento"},
+]
+
+for tarefa in tarefas:
+    db.collection("tarefas").add(tarefa)  # Adiciona automaticamente com ID único
+
+tarefas_ref = db.collection("tarefas").stream()
+tarefas = [{doc.id: doc.to_dict()} for doc in tarefas_ref]
+
+import streamlit as st
+st.write("Tarefas no Firestore:", tarefas)
+
+
+
+
+
+
+
+
 
 # Caminho dos arquivos CSV/Excel para dados auxiliares (se necessário)
 BASE_PATH = "dados/base.csv"
