@@ -5,7 +5,9 @@ import os
 from datetime import datetime
 import glob
 import sqlite3
-from datetime import timedelta
+import firebase_admin
+from firebase_admin import credentials, firestore
+import json
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -54,6 +56,21 @@ def add_custom_css():
 add_custom_css()
 
 ########################################## BANCO DE DADOS ##########################################
+
+# Ler a chave do Firebase do ambiente (se estiver rodando no Streamlit Cloud)
+if "FIREBASE_KEY" in os.environ:
+    firebase_key = json.loads(os.environ["FIREBASE_KEY"])
+    cred = credentials.Certificate(firebase_key)
+else:
+    cred = credentials.Certificate("firebase_key.json")  # Para rodar localmente
+
+# Inicializar Firebase
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+
+
+
 
 # Conecta (ou cria) o banco de dados
 conn = sqlite3.connect('dados/dados.db', check_same_thread=False)
@@ -1261,4 +1278,3 @@ if __name__ == "__main__":
         # Fechar conexão ao final
         if conn:
             conn.close()
-            
