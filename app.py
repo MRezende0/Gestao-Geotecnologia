@@ -73,11 +73,11 @@
 
 # ########################################## BANCO DE DADOS (Firestore) ##########################################
 
-# @st.cache_data(ttl=300)  # Cache de 5 minutos
+# @st.cache_data
 # def carregar_tarefas():
 #     try:
 #         st.write("Carregando tarefas...")  # Debug
-#         docs = db.collection("tarefas").order_by("Data", direction=firestore.Query.DESCENDING).limit(100).stream()
+#         docs = db.collection("tarefas").order_by("Data", direction=firestore.Query.DESCENDING).limit(10).stream()
         
 #         data = []
 #         for doc in docs:
@@ -92,26 +92,26 @@
 #         st.error(f"Erro ao carregar tarefas: {str(e)}")
 #         return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
 
-# @st.cache_data(ttl=300)  # Cache de 5 minutos
+# @st.cache_data
 # def carregar_atividades_extras():
-#     docs = db.collection("atividades_extras").limit(500).stream()
+#     docs = db.collection("atividades_extras").limit(10).stream()
 #     data = [doc.to_dict() for doc in docs]
 #     return pd.DataFrame(data) if data else pd.DataFrame()
 
-# @st.cache_data(ttl=300)  # Cache de 5 minutos
+# @st.cache_data
 # def carregar_auditoria():
-#     docs = db.collection("auditoria").limit(500).stream()
+#     docs = db.collection("auditoria").limit(10).stream()
 #     data = [doc.to_dict() for doc in docs]
 #     return pd.DataFrame(data) if data else pd.DataFrame()
 
 # # def carregar_reforma():
-# #     docs = db.collection("reforma").stream()
+# #     docs = db.collection("reforma").limit(10).stream()
 # #     data = [doc.to_dict() for doc in docs]
 # #     return pd.DataFrame(data) if data else pd.DataFrame()
 
-# # @st.cache_data(ttl=600)  # Cache por 10 minutos
+# # @st.cache_data
 # # def carregar_passagem():
-# #     docs = db.collection("passagem").stream()
+# #     docs = db.collection("passagem").limit(10).stream()
 # #     data = [doc.to_dict() for doc in docs]
 # #     return pd.DataFrame(data) if data else pd.DataFrame()
 
@@ -1239,110 +1239,85 @@
 #         st.stop()
 
 
+
+
+
+
+
+import datetime
 import streamlit as st
+import pandas as pd
+from datetime import datetime as dt
+from firebase_admin import firestore, credentials
 import firebase_admin
-from firebase_admin import credentials, firestore
 
 # Configuração do Firebase
-def init_firebase():
-    # Verifica se o Firebase já foi inicializado
-    if not firebase_admin._apps:
-        cred = credentials.Certificate("firebase_key.json")
-        firebase_admin.initialize_app(cred)
+cred = credentials.Certificate("firebase_key.json")
+# Inicialize o app Firebase (apenas uma vez)
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 
-# Inicializa o Firebase
-init_firebase()
-
-# Conecta ao Firestore
+# Acesse o Firestore
 db = firestore.client()
 
-# Configuração da página
-st.set_page_config(
-    page_title="Gerenciador de Tarefas",
-    page_icon="✅",
-    layout="wide"
-)
-
-# Operações do Firestore
-def create_task(task_data):
-    try:
-        doc_ref = db.collection("tasks").document()
-        task_data["id"] = doc_ref.id
-        doc_ref.set(task_data)
-        return True
-    except Exception as e:
-        st.error(f"Erro ao criar tarefa: {str(e)}")
-        return False
-
-def get_tasks():
-    try:
-        docs = db.collection("tasks").stream()
-        return [doc.to_dict() for doc in docs]
-    except Exception as e:
-        st.error(f"Erro ao carregar tarefas: {str(e)}")
-        return []
-
-def update_task(task_id, new_data):
-    try:
-        db.collection("tasks").document(task_id).update(new_data)
-        return True
-    except Exception as e:
-        st.error(f"Erro ao atualizar tarefa: {str(e)}")
-        return False
-
-def delete_task(task_id):
-    try:
-        db.collection("tasks").document(task_id).delete()
-        return True
-    except Exception as e:
-        st.error(f"Erro ao excluir tarefa: {str(e)}")
-        return False
+# Função para carregar os dados otimizados do Firebase
+def carregar_atividades(filtro_colaborador=None, filtro_data=None):
+    ref = db.collection('atividades')
     
-# Formulário de criação
-with st.form("nova_tarefa"):
-    st.header("Nova Tarefa")
-    title = st.text_input("Título")
-    description = st.text_area("Descrição")
-    due_date = st.date_input("Data de Vencimento")
-    priority = st.selectbox("Prioridade", ["Baixa", "Média", "Alta"])
+    if filtro_colaborador and filtro_colaborador != 'Todos':
+        ref = ref.where('colaborador', '==', filtro_colaborador)
     
-    if st.form_submit_button("Salvar Tarefa"):
-        task_data = {
-            "title": title,
-            "description": description,
-            "due_date": str(due_date),
-            "priority": priority,
-            "completed": False
+    if filtro_data:
+        # Filtro de data
+        ref = ref.where('data', '>=', filtro_data)
+    
+    documentos = ref.stream()
+    atividades = []
+    
+    for doc in documentos:
+        atividades.append(doc.to_dict())
+    
+    return pd.DataFrame(atividades)
+
+# Sidebar
+st.sidebar.title('Menu de Navegação')
+pagina = st.sidebar.radio('Escolha a Página', ('Dashboard', 'Registrar'))
+
+# Filtros na Sidebar
+filtro_colaborador = st.sidebar.selectbox('Selecione o Colaborador', ['Todos', 'Colaborador 1', 'Colaborador 2', 'Colaborador 3'])
+
+# Criando um objeto datetime.date corretamente
+filtro_data = datetime.date(2024, 1, 1)
+
+# Convertendo para datetime.datetime
+filtro_data = dt.combine(filtro_data, dt.min.time())
+
+# Dashboard
+if pagina == 'Dashboard':
+    st.title('Dashboard de Atividades')
+
+    # Carregar dados otimizados com filtros aplicados
+    df_atividades = carregar_atividades(filtro_colaborador=filtro_colaborador, filtro_data=filtro_data)
+
+    st.write(df_atividades)
+
+# Registro de Atividades
+if pagina == 'Registrar':
+    st.title('Registrar Nova Atividade')
+
+    # Formulário para registrar nova atividade
+    colaborador = st.text_input('Colaborador')
+    atividade = st.text_input('Atividade')
+    data = st.date_input('Data', dt.today())
+    
+    if st.button('Registrar'):
+        # Enviar para o Firebase
+        atividade_dict = {
+            'colaborador': colaborador,
+            'atividade': atividade,
+            'data': data.strftime('%Y-%m-%d')
         }
-        if create_task(task_data):
-            st.success("Tarefa criada com sucesso!")
-            st.rerun()
+        db.collection('atividades').add(atividade_dict)
+        st.success('Atividade registrada com sucesso!')
 
-# Lista de Tarefas
-st.header("Lista de Tarefas")
-tasks = get_tasks()
 
-if not tasks:
-    st.info("Nenhuma tarefa encontrada.")
-else:
-    for task in tasks:
-        with st.expander(f"{task['title']} - {task['priority']}"):
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.write(f"**Descrição:** {task['description']}")
-                st.write(f"**Vencimento:** {task['due_date']}")
-                completed = st.checkbox(
-                    "Concluída",
-                    value=task['completed'],
-                    key=f"completed_{task['id']}"
-                )
-                
-            with col2:
-                if st.button("Excluir", key=f"delete_{task['id']}"):
-                    if delete_task(task['id']):
-                        st.success("Tarefa excluída!")
-                        st.rerun()
-            
-            if completed != task['completed']:
-                if update_task(task['id'], {"completed": completed}):
-                    st.rerun()
