@@ -7,7 +7,6 @@ import glob
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
-import uuid
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -74,16 +73,23 @@ db = firestore.client()
 
 ########################################## BANCO DE DADOS (Firestore) ##########################################
 
+@st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_tarefas():
-    docs = db.collection("tarefas").limit(500).stream()
-    data = [doc.to_dict() for doc in docs]
+    docs = db.collection("tarefas").order_by("Data", direction=firestore.Query.DESCENDING).limit(5).stream()
+    data = []
+    for doc in docs:
+        doc_data = doc.to_dict()
+        doc_data["id"] = doc.id  # Adiciona o ID do documento
+        data.append(doc_data)
     return pd.DataFrame(data) if data else pd.DataFrame()
 
+@st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_atividades_extras():
     docs = db.collection("atividades_extras").limit(500).stream()
     data = [doc.to_dict() for doc in docs]
     return pd.DataFrame(data) if data else pd.DataFrame()
 
+@st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_auditoria():
     docs = db.collection("auditoria").limit(500).stream()
     data = [doc.to_dict() for doc in docs]
@@ -139,27 +145,22 @@ df_ref_pas = carregar_dados(REF_PAS_PATH, [""])
 df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
 
 # Converter tipos das colunas dos dados auxiliares, se necessário
-df_tarefas = carregar_tarefas()
 if not df_tarefas.empty:
     df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
 df_base["Setor"] = df_base["Setor"].astype(int)
 
 # Mesclar dados auxiliares com tarefas, se necessário
 df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
-if 'Area' not in df_tarefas.columns or 'Unidade' not in df_tarefas.columns:
-    st.error("Erro: As colunas 'Area' e 'Unidade' não foram adicionadas corretamente.")
-    st.stop()
-
-df_tarefas['Area'] = df_tarefas['Area'].fillna(0)
+df_tarefas['Area'] = df_tarefas['Area'].fillna(0).astype(int)
 df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
 
 ########################################## DASHBOARD ##########################################
 
 def dashboard():
     st.title("📊 Dashboard")
-    
-    # Carrega os dados das tarefas do Firestore
-    df_tarefas = carregar_tarefas()
+
+    with st.spinner('Carregando dados...'):
+        df_tarefas = carregar_tarefas()
     
     # Se o DataFrame estiver vazio, exibe mensagem e retorna
     if df_tarefas.empty:
@@ -564,9 +565,6 @@ def registrar_atividades():
 # Função para exibir os projetos como cards clicáveis
 def tarefas_semanais():
     st.title("📂 Atividades")
-
-    # Garantir que os dados sejam carregados corretamente
-    df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
@@ -1229,3 +1227,4 @@ if __name__ == "__main__":
             main_app()
     except Exception as e:
         st.error(f"Erro ao executar a aplicação: {e}")
+        st.stop()
