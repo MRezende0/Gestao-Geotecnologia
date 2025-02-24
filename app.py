@@ -55,6 +55,11 @@ add_custom_css()
 
 ########################################## GOOGLE SHEETS CONFIGURAÇÃO ##########################################
 
+auth_data = json.loads(os.getenv("GOOGLE_AUTH"))
+
+creds = ServiceAccountCredentials.from_json_keyfile_dict(auth_data)
+client = gspread.authorize(creds)
+
 # Configuração do Google Sheets
 SHEET_ID = "1EsJTZYTGJHpiRNg3U-GiqYDojjEGH7OAeKJRPzZuTIs"
 SHEET_GIDS = {
