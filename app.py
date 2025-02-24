@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -55,11 +56,6 @@ add_custom_css()
 
 ########################################## GOOGLE SHEETS CONFIGURAÇÃO ##########################################
 
-auth_data = json.loads(os.getenv("GOOGLE_AUTH"))
-
-creds = ServiceAccountCredentials.from_json_keyfile_dict(auth_data)
-client = gspread.authorize(creds)
-
 # Configuração do Google Sheets
 SHEET_ID = "1EsJTZYTGJHpiRNg3U-GiqYDojjEGH7OAeKJRPzZuTIs"
 SHEET_GIDS = {
@@ -73,9 +69,19 @@ SHEET_GIDS = {
 def get_google_sheets_client():
     """Initialize and return Google Sheets client"""
     try:
+        # Definir os escopos necessários
         scope = ['https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_name('auth.json', scope)
+
+        # Tentar carregar credenciais do Streamlit Cloud
+        if 'GOOGLE_CREDENTIALS' in st.secrets:
+            # Usar credenciais do Streamlit Cloud
+            credentials_dict = json.loads(st.secrets['GOOGLE_CREDENTIALS'])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+        else:
+            # Usar arquivo local auth.json
+            creds = ServiceAccountCredentials.from_json_keyfile_name('auth.json', scope)
+        
         return gspread.authorize(creds)
     except Exception as e:
         st.error(f"Erro ao conectar com Google Sheets: {str(e)}")
@@ -709,7 +715,6 @@ if "projeto_selecionado" in st.session_state:
                 padding: 20px;
                 border-radius: 10px;
                 border: 1px solid #ddd;
-                box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
                 text-align: left;
                 margin-top: 20px;">
                 <h3 style="text-align: center;">📄 Detalhes da Atividade</h3>
