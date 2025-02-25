@@ -1,14 +1,16 @@
+# Standard library imports
+import os
+import ssl
+import glob
+from datetime import datetime, timedelta
+
+# Third-party imports
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
-from datetime import datetime, timedelta
-import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2 import service_account
-import ssl
-import glob
 
 # Corrigir erro de certificado SSL em alguns ambientes locais
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -74,12 +76,18 @@ SHEET_GIDS = {
 
 @st.cache_resource
 def get_google_sheets_client():
-    """Initialize and return Google Sheets client"""
+    """
+    Initialize and return Google Sheets client with proper error handling.
+    
+    Returns:
+        gspread.Client or None: Authenticated Google Sheets client or None if error occurs
+    """
     try:
-        scope = ['https://spreadsheets.google.com/feeds',
-                 'https://www.googleapis.com/auth/drive']
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/drive'
+        ]
 
-        # Usar apenas as credenciais do Streamlit Secrets
         credentials_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
         
@@ -106,14 +114,21 @@ def get_worksheet(sheet_name):
         return None
 
 @st.cache_data(ttl=60)
-def load_data(sheet_name):
-    """Carrega dados de uma aba específica da planilha Google Sheets"""
+def load_data(sheet_name: str) -> pd.DataFrame:
+    """
+    Carrega dados de uma aba específica da planilha Google Sheets.
+    
+    Args:
+        sheet_name: Nome da aba da planilha
+        
+    Returns:
+        DataFrame com os dados carregados
+    """
     try:
         worksheet = get_worksheet(sheet_name)
         if worksheet is None:
             return pd.DataFrame()
             
-        # Get all values including headers
         data = worksheet.get_all_records()
         return pd.DataFrame(data)
     except Exception as e:
@@ -145,10 +160,27 @@ def append_to_sheet(data_dict, sheet_name):
         # st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
         return False
 
-########################################## FUNÇÕES DE CARREGAMENTO DE DADOS ##########################################
+########################################## DADOS ##########################################
+
+# Configuração do Google Sheets
+SHEET_ID = "1EsJTZYTGJHpiRNg3U-GiqYDojjEGH7OAeKJRPzZuTIs"
+SHEET_GIDS = {
+    "Tarefas": "0",
+    "AtividadesExtras": "1017708666",
+    "Auditoria": "543590152",
+    "Base": "503847224",
+    "Reforma": "1252125692",
+    "Passagem": "2099988266",
+    "Pós": "1874058370"
+}
+
+# Constantes para diretórios e arquivos
+PASTA_POS = "dados/pos-aplicacao"
+ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
 @st.cache_data(ttl=60)
-def carregar_tarefas():
+def carregar_tarefas() -> pd.DataFrame:
+    """Carrega e formata os dados de tarefas."""
     df = load_data("Tarefas")
     if not df.empty:
         if "Data" in df.columns:
@@ -158,65 +190,52 @@ def carregar_tarefas():
     return df
 
 @st.cache_data(ttl=60)
-def carregar_atividades_extras():
+def carregar_atividades_extras() -> pd.DataFrame:
+    """Carrega os dados de atividades extras."""
     return load_data("AtividadesExtras")
 
 @st.cache_data(ttl=60)
-def carregar_auditoria():
+def carregar_auditoria() -> pd.DataFrame:
+    """Carrega os dados de auditoria."""
     return load_data("Auditoria")
 
 @st.cache_data(ttl=60)
-def carregar_dados_base():
+def carregar_dados_base() -> pd.DataFrame:
+    """Carrega e formata os dados base."""
     df = load_data("Base")
     if not df.empty and "Setor" in df.columns:
         df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
 
-# Funções para carregar dados de reforma e passagem
 @st.cache_data(ttl=60)
-def carregar_reforma():
+def carregar_reforma() -> pd.DataFrame:
+    """Carrega os dados de reforma."""
     return load_data("Reforma")
 
 @st.cache_data(ttl=60)
-def carregar_passagem():
+def carregar_passagem() -> pd.DataFrame:
+    """Carrega os dados de passagem."""
     return load_data("Passagem")
 
-########################################## DADOS ##########################################
+@st.cache_data(ttl=60)
+def carregar_dados_pos() -> pd.DataFrame:
+    """Carrega os dados de pós-aplicação."""
+    df = load_data("Pós")
+    if not df.empty:
+        if "DATA" in df.columns:
+            df["DATA"] = pd.to_datetime(df["DATA"])
+        if "SETOR" in df.columns:
+            df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
+    return df
 
-# Caminho dos arquivos CSV/Excel para dados auxiliares (se necessário)
-BASE_PATH = "dados/base.csv"
-EXTRAS_PATH = "dados/extras.csv"
-POS_PATH = "dados/pos_aplicacao.xlsx"
-REF_PAS_PATH = "dados/reforma_passagem.xlsx"
-AUDITORIA_PATH = "dados/auditoria.csv"
-PASTA_POS = "dados/pos-aplicacao"
-ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
-
-# Função para carregar dados de CSV ou Excel (usada para dados auxiliares)
-def carregar_dados(caminho, colunas=None, aba=None):
-    if os.path.exists(caminho):
-        _, extensao = os.path.splitext(caminho)
-        extensao = extensao.lower()
-        if extensao == ".csv":
-            return pd.read_csv(caminho)
-        elif extensao in [".xls", ".xlsx"]:
-            return pd.read_excel(caminho, sheet_name=aba) if aba is not None else pd.read_excel(caminho)
-        else:
-            raise ValueError(f"Formato de arquivo {extensao} não suportado!")
-    else:
-        return pd.DataFrame(columns=colunas)
-
+# Carregamento inicial dos dados
 df_tarefas = carregar_tarefas()
 df_extras = carregar_atividades_extras()
 df_auditoria = carregar_auditoria()
 df_reforma = carregar_reforma()
 df_passagem = carregar_passagem()
-
-# Carrega os dados auxiliares
-df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
-df_pos = carregar_dados(POS_PATH, ["UNIDADE", "SETOR", "TALHÃO", "AREA", "DESC_OPERAÇÃO", "DATA"])
-df_ref_pas = carregar_dados(REF_PAS_PATH, [""])
-df_pos_csv = carregar_dados(ARQUIVO_POS_CSV, ["DESC_OPERAÇÃO","DATA","SETOR","TALHÃO","AREA"])
+df_base = carregar_dados_base()
+df_pos = carregar_dados_pos()
 
 # Converter tipos das colunas dos dados auxiliares, se necessário
 if not df_tarefas.empty:
@@ -242,7 +261,7 @@ def dashboard():
         return
 
     # Mesclar com df_base (dados auxiliares vindos de CSV) para obter 'Area' e 'Unidade'
-    df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
+    df_base = carregar_dados_base()
     # Certifique-se de que a coluna 'Setor' está com o mesmo tipo em ambos os DataFrames
     df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
     df_base["Setor"] = df_base["Setor"].astype(int)
@@ -569,83 +588,69 @@ def registrar_atividades():
 
     elif tipo_atividade == "Pós-Aplicação":
         st.header("Upload de Arquivo - Pós-Aplicação")
-
-        # Lista de colunas padronizadas
-        COLUNAS_PADRONIZADAS = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
-
-        # Variável de controle para indicar se o arquivo foi salvo agora
-        arquivo_salvo_agora = False 
-
-        # Upload do arquivo
         arquivo = st.file_uploader("Carregue um arquivo Excel", type=["xls", "xlsx"])
 
         if arquivo:
-            # Definir caminho do arquivo
-            caminho_arquivo = os.path.join(PASTA_POS, arquivo.name)
-
-            # Verificar se o arquivo já existe antes de salvar
-            if os.path.exists(caminho_arquivo):
-                st.error(f"O arquivo '{arquivo.name}' já existe na pasta.")
-            else:
-                # Salvar o arquivo na pasta
-                with open(caminho_arquivo, "wb") as f:
-                    f.write(arquivo.getbuffer())
-
-                st.success(f"Arquivo salvo: {arquivo.name}")
-                arquivo_salvo_agora = True  # Marca que um arquivo novo foi salvo
-
-        # Listar arquivos na pasta (somente se não acabamos de salvar um novo arquivo)
-        if not arquivo_salvo_agora:
-            arquivos_excel = glob.glob(os.path.join(PASTA_POS, "*.xls*"))
-
-            if arquivos_excel:
-                dfs = []
-                for arquivo in arquivos_excel:
-                    df = pd.read_excel(arquivo)
-
-                    # Verificar se as colunas estão padronizadas
-                    if list(df.columns) != COLUNAS_PADRONIZADAS:
-                        st.error(f"O arquivo {os.path.basename(arquivo)} não segue o padrão de colunas esperado.")
-                        st.write(f"Colunas esperadas: {COLUNAS_PADRONIZADAS}")
-                        st.write(f"Colunas encontradas: {list(df.columns)}")
-                        continue  # Pula este arquivo
-
-                    dfs.append(df)
-
-                if dfs:
-                    df_total = pd.concat(dfs, ignore_index=True)
-
-                    # Exibir todas as operações disponíveis
-                    operacoes_unicas = df_total["DESC_OPERAÇÃO"].unique().tolist()
-                    operacoes_selecionadas = st.multiselect(
-                        "Selecione as operações que deseja salvar:", operacoes_unicas
-                    )
-
-                    # Filtrar os dados
-                    df_filtrado = df_total[df_total["DESC_OPERAÇÃO"].isin(operacoes_selecionadas)]
-
-                    if not df_filtrado.empty:
-                        st.write("Prévia dos dados filtrados:")
-                        st.dataframe(df_filtrado)
-
-                        # Botão para salvar os dados
-                        if st.button("Salvar Dados no CSV"):
-                            if os.path.exists(ARQUIVO_POS_CSV):
-                                # Carregar dados existentes
-                                df_existente = pd.read_csv(ARQUIVO_POS_CSV)
-
-                                # Concatenar sem duplicar "DESC_OPERAÇÃO", "SETOR" e "TALHÃO"
-                                df_final = pd.concat([df_existente, df_filtrado])
-                                df_final = df_final.drop_duplicates(subset=["DESC_OPERAÇÃO", "SETOR", "TALHÃO"])
-
-                                # Salvar no CSV
-                                df_final.to_csv(ARQUIVO_POS_CSV, index=False)
-                            else:
-                                df_filtrado.to_csv(ARQUIVO_POS_CSV, index=False)
-
-                            st.success("Os dados filtrados foram adicionados ao pos_aplicacao.csv sem duplicações.")
-                    else:
-                        st.warning("Nenhuma operação selecionada. O arquivo não será salvo.")
+            try:
+                # Ler o arquivo Excel
+                df = pd.read_excel(arquivo)
+                
+                # Verificar colunas necessárias
+                colunas = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
+                if not all(col in df.columns for col in colunas):
+                    st.error("Arquivo deve conter: DESC_OPERAÇÃO, DATA, SETOR, TALHÃO, AREA")
+                    return
+                
+                # Processar dados
+                df = df[colunas]
+                df["DATA"] = pd.to_datetime(df["DATA"])
+                df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
+                df["AREA"] = pd.to_numeric(df["AREA"], errors='coerce').fillna(0)
+                
+                # Mostrar preview
+                st.write("### Preview dos dados:")
+                st.dataframe(df.head())
+                
+                # Salvar dados
+                if st.button("Salvar"):
+                    # Verificar duplicatas
+                    df_existente = carregar_dados_pos()
+                    novos_registros = []
+                    duplicatas = 0
+                    
+                    for _, row in df.iterrows():
+                        dados = {
+                            "DESC_OPERAÇÃO": row["DESC_OPERAÇÃO"],
+                            "DATA": row["DATA"].strftime("%Y-%m-%d"),
+                            "SETOR": int(row["SETOR"]),
+                            "TALHÃO": row["TALHÃO"],
+                            "AREA": float(row["AREA"])
+                        }
+                        
+                        # Verificar se já existe
+                        if df_existente.empty or not (
+                            (df_existente["SETOR"] == dados["SETOR"]) &
+                            (df_existente["TALHÃO"] == dados["TALHÃO"]) &
+                            (df_existente["DATA"].dt.date == pd.to_datetime(dados["DATA"]).date()) &
+                            (df_existente["DESC_OPERAÇÃO"] == dados["DESC_OPERAÇÃO"])
+                        ).any():
+                            novos_registros.append(dados)
+                        else:
+                            duplicatas += 1
+                    
+                    # Salvar novos registros
+                    if novos_registros:
+                        for dados in novos_registros:
+                            append_to_sheet(dados, "Pós")
+                        st.success(f"Salvos {len(novos_registros)} novos registros!")
+                    
+                    if duplicatas:
+                        st.warning(f"{duplicatas} registros duplicados foram ignorados")
+                    
+                    st.cache_data.clear()
+                    
+            except Exception as e:
+                st.error(f"Erro ao processar arquivo: {str(e)}")
 
     # Formulário para Auditoria
     elif tipo_atividade == "Auditoria":
@@ -713,6 +718,9 @@ def registrar_atividades():
 # Função para exibir os projetos como cards clicáveis
 def tarefas_semanais():
     st.title("📂 Atividades")
+
+    # Carregar os dados de tarefas
+    df_tarefas = carregar_tarefas()
 
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
@@ -1088,6 +1096,12 @@ def auditoria():
 
     st.divider()
 
+    # Exibir tabela formatada
+    st.write("### Planejado x Executado")
+    st.dataframe(df_tabela)
+
+    st.divider()
+
     # Tabela de auditoria
     st.write("### Lista de Auditorias")
     df_auditoria_display = df_auditoria[["Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", "TipoTerraco_Planejado", "TipoTerraco_Executado"]]
@@ -1136,10 +1150,6 @@ def auditoria():
                 st.rerun()
         except Exception as e:
             st.error(f"Erro ao salvar alterações: {str(e)}")
-
-    # Exibir tabela formatada
-    st.write("### Planejado x Executado")
-    st.dataframe(df_tabela)
 
 ########################################## EXTRAS ##########################################
 
@@ -1448,8 +1458,8 @@ def main_app():
         registrar_atividades()
     elif menu_option == "Atividades":
         tarefas_semanais()
-    # elif menu_option == "Reforma e Passagem":
-    #     acompanhamento_reforma_passagem()
+    elif menu_option == "Reforma e Passagem":
+        acompanhamento_reforma_passagem()
     elif menu_option == "Auditoria":
         auditoria()
     elif menu_option == "Extras":

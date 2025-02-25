@@ -1,96 +1,70 @@
-# ERP de Gestão Financeira
+# Gestão Geotecnologia
 
-Este é um **ERP de Gestão Financeira** desenvolvido com **Python** e **Streamlit**, projetado para auxiliar no controle financeiro de empresas. Ele oferece uma interface moderna e intuitiva, permitindo a gestão de receitas, despesas e relatórios financeiros, além de buscar informações de empresas por meio de consultas de CNPJ.
+Sistema de gestão para a equipe de Geotecnologia, desenvolvido com Streamlit e integrado ao Google Sheets.
 
-## **Funcionalidades**
+## Funcionalidades
 
-- **Login Seguro**:
-  - Acesso restrito com autenticação por e-mail e senha.
-  - Use para fazer login: 20242025" senha: 123
+- **Dashboard**: Visualização geral das atividades e métricas
+- **Registrar**: Registro de diferentes tipos de atividades
+  - Atividade Semanal
+  - Atividade Extra
+  - Reforma e Passagem
+  - Pós-Aplicação
+  - Auditoria
+- **Atividades**: Acompanhamento de tarefas semanais
+- **Reforma e Passagem**: Acompanhamento de projetos de reforma e passagem
+- **Auditoria**: Gestão de auditorias
+- **Extras**: Controle de atividades extras
 
-- **Dashboard Financeiro**:
-  - Visualização consolidada de receitas, despesas e saldo.
-  - Gráficos interativos para análise de categorias de receitas e despesas.
+## Requisitos
 
-- **Registro de Transações**:
-  - Cadastro de receitas e despesas com informações detalhadas, como:
-    - Data.
-    - Descrição.
-    - Categoria.
-    - Valor.
-    - Tipo (Receita ou Despesa).
+- Python 3.8+
+- Dependências listadas em `requirements.txt`
+- Credenciais do Google Sheets configuradas no Streamlit Secrets
 
-- **Relatórios Financeiros**:
-  - Tabela detalhada das transações realizadas.
-  - Gráficos interativos (pizza) para análise de distribuição por categorias.
+## Instalação
 
-- **Consulta de CNPJ**:
-  - Busca informações de empresas a partir do número do CNPJ:
-    - Nome da empresa.
-    - Situação cadastral.
-    - UF.
-    - Atividade principal.
-
-## **Pré-requisitos**
-
-Antes de executar o projeto, certifique-se de que as seguintes bibliotecas estão instaladas no seu ambiente Python:
-
-```bash
-pip install streamlit pandas plotly requests
-```
-
-## **Como Executar**
-
-1. **Clone o Repositório**:
+1. Clone o repositório
+2. Instale as dependências:
    ```bash
-   git clone https://github.com/seu-usuario/seu-repositorio.git
-   cd seu-repositorio
+   pip install -r requirements.txt
    ```
-
-2. **Execute o Sistema**:
-   No terminal, digite:
+3. Configure as credenciais do Google Sheets no Streamlit Secrets
+4. Execute a aplicação:
    ```bash
    streamlit run app.py
    ```
 
-3. **Acesse no Navegador**:
-   O Streamlit abrirá automaticamente no navegador, mas caso não abra, acesse:
-   ```
-   http://localhost:8501
-   ```
+## Estrutura do Projeto
 
-4. **Login**:
-   Use as seguintes credenciais para acessar o sistema:
-   - **E-mail**: `marketing@odoscontabilidade.com.br`
-   - **Senha**: `odos123`
+```
+.
+├── app.py              # Aplicação principal
+├── dados/             # Diretório de dados
+│   └── pos-aplicacao/ # Dados de pós-aplicação
+├── imagens/           # Imagens e ícones
+└── requirements.txt   # Dependências do projeto
+```
 
-## **Tecnologias Utilizadas**
+## Google Sheets
 
-- **Python**: Linguagem principal do sistema.
-- **Streamlit**: Framework para criação de interfaces web interativas.
-- **Pandas**: Manipulação e análise de dados financeiros.
-- **Plotly**: Criação de gráficos interativos.
-- **Requests**: Consulta de APIs (usada para buscar informações de CNPJ).
+A aplicação utiliza o Google Sheets como banco de dados, com as seguintes abas:
+- Tarefas
+- AtividadesExtras
+- Auditoria
+- Base
+- Reforma
+- Passagem
 
-## **Exemplo de Uso**
+## Desenvolvimento
 
-### **Dashboard Financeiro**
-O dashboard exibe as métricas financeiras consolidadas:
-- Total de receitas.
-- Total de despesas.
-- Saldo atual.
-Além disso, inclui gráficos para análise detalhada de categorias.
+Para contribuir com o projeto:
 
-### **Registro de Transações**
-Permite o cadastro de receitas e despesas com informações como data, descrição e valor, ajudando a organizar e controlar o fluxo financeiro.
+1. Faça um fork do repositório
+2. Crie uma branch para sua feature
+3. Faça commit das suas alterações
+4. Envie um pull request
 
-### **Consulta de CNPJ**
-Busca informações de uma empresa através do CNPJ, integrando dados úteis como nome, situação cadastral e atividade principal.
+## Suporte
 
-## **Contribuições**
-
-Contribuições são bem-vindas! Se você tiver sugestões, problemas ou melhorias, fique à vontade para abrir uma issue ou um pull request neste repositório.
-
-## **Licença**
-
-Este projeto está licenciado sob a licença MIT. Consulte o arquivo `LICENSE` para mais detalhes.
+Em caso de dúvidas ou problemas, entre em contato com a equipe de desenvolvimento.
