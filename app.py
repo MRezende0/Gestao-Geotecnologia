@@ -72,7 +72,8 @@ SHEET_GIDS = {
     "Auditoria": "543590152",
     "Base": "503847224",
     "Reforma": "1252125692",
-    "Passagem": "2099988266"
+    "Passagem": "2099988266",
+    "Pós": "1874058370"
 }
 
 @st.cache_resource
@@ -161,6 +162,46 @@ def append_to_sheet(data_dict, sheet_name):
         # st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
         return False
 
+def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
+    """
+    Atualiza toda a planilha com o DataFrame fornecido.
+    
+    Args:
+        df: DataFrame com os dados atualizados
+        sheet_name: Nome da aba da planilha
+        
+    Returns:
+        bool: True se sucesso, False se erro
+    """
+    try:
+        worksheet = get_worksheet(sheet_name)
+        if worksheet is None:
+            return False
+            
+        # Limpar a planilha atual
+        worksheet.clear()
+        
+        # Adicionar cabeçalhos
+        headers = df.columns.tolist()
+        worksheet.append_row(headers)
+        
+        # Converter datas para string no formato correto
+        if "Data" in df.columns:
+            df["Data"] = pd.to_datetime(df["Data"]).dt.strftime("%Y-%m-%d")
+        elif "DATA" in df.columns:
+            df["DATA"] = pd.to_datetime(df["DATA"]).dt.strftime("%Y-%m-%d")
+            
+        # Adicionar dados
+        worksheet.append_rows(df.values.tolist())
+        
+        # Limpar cache
+        st.cache_data.clear()
+        return True
+        
+    except Exception as e:
+        st.error(f"Erro ao atualizar planilha {sheet_name}: {str(e)}")
+        return False
+
 ########################################## DADOS ##########################################
 
 # Configuração do Google Sheets
@@ -185,7 +226,15 @@ def carregar_tarefas() -> pd.DataFrame:
     df = load_data("Tarefas")
     if not df.empty:
         if "Data" in df.columns:
-            df["Data"] = pd.to_datetime(df["Data"])
+            # Converter usando infer_datetime_format para maior flexibilidade
+            df["Data"] = pd.to_datetime(
+                df["Data"], 
+                errors='coerce',  # Converter valores inválidos para NaT
+                infer_datetime_format=True,
+                dayfirst=True  # Considerar formato dia/mês/ano
+            )
+            # Remover linhas com datas inválidas
+            df = df.dropna(subset=["Data"])
         if "Setor" in df.columns:
             df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
@@ -423,17 +472,31 @@ def dashboard():
     # Tabela
     st.write("### Detalhes das Tarefas")
     df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False).reset_index(drop=True)
-    df_tarefas_ordenado = df_tarefas[["Data", "Setor", "Colaborador", "Tipo", "Status", "Unidade", "Area"]]
     df_tarefas_display = df_tarefas_ordenado[["Data", "Setor", "Colaborador", "Tipo", "Status"]]
-    df_tarefas_display["Data"] = pd.to_datetime(df_tarefas_display["Data"]).dt.strftime("%d/%m/%Y")
+    df_tarefas_display["Data"] = pd.to_datetime(df_tarefas_display["Data"], errors="coerce")
     
-    # Criar um editor de dados com funcionalidade de exclusão de linhas
+    # Criar um editor de dados
     df_editado = st.data_editor(
         df_tarefas_display,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_config={
+            "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            "Setor": st.column_config.NumberColumn("Setor", min_value=0, step=1),
+            "Colaborador": st.column_config.SelectboxColumn(
+                "Colaborador",
+                options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"]
+            ),
+            "Tipo": st.column_config.SelectboxColumn(
+                "Tipo",
+                options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", 
+                        "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"]
+            ),
+            "Status": st.column_config.SelectboxColumn(
+                "Status",
+                options=["A fazer", "Em andamento", "A validar", "Concluído"]
+            ),
             "DELETE": st.column_config.CheckboxColumn(
                 "Excluir",
                 help="Selecione para excluir a linha",
@@ -449,25 +512,15 @@ def dashboard():
             if "DELETE" in df_editado.columns:
                 df_editado = df_editado[~df_editado["DELETE"]]
                 df_editado = df_editado.drop(columns=["DELETE"])
-
-            # Criar uma nova planilha com os dados atualizados
-            worksheet = get_worksheet("Tarefas")
-            if worksheet is not None:
-                # Limpar a planilha atual
-                worksheet.clear()
-                
-                # Adicionar cabeçalhos
-                headers = df_editado.columns.tolist()
-                worksheet.append_row(headers)
-                
-                # Adicionar dados
-                worksheet.append_rows(df_editado.values.tolist())
-                
-                # Limpar o cache para forçar recarregamento dos dados
-                st.cache_data.clear()
-                
+            
+            # Converter datas para o formato correto
+            df_editado["Data"] = pd.to_datetime(df_editado["Data"], errors='coerce')
+            
+            # Atualizar a planilha
+            if update_sheet(df_editado, "Tarefas"):
                 st.success("Dados atualizados com sucesso!")
                 st.rerun()
+                
         except Exception as e:
             st.error(f"Erro ao salvar alterações: {str(e)}")
 
@@ -488,14 +541,14 @@ def registrar_atividades():
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
-            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "Projeto LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"])
+            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"])
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
             if submit:
                 try:
                     nova_tarefa = {
-                        "Data": Data.strftime("%Y-%m-%d"),
+                        "Data": datetime.strptime(str(Data), "%Y-%m-%d"),
                         "Setor": int(Setor),
                         "Colaborador": Colaborador,
                         "Tipo": Tipo,
@@ -543,13 +596,46 @@ def registrar_atividades():
         else:
             df_editavel = carregar_passagem()
             
-        # Criar um editor de dados com funcionalidade de exclusão de linhas
+        # Criar um editor de dados
         df_editado = st.data_editor(
             df_editavel,
             num_rows="dynamic",
             use_container_width=True,
             hide_index=True,
             column_config={
+                "Unidade": st.column_config.SelectboxColumn(
+                    "Unidade",
+                    options=["PPT", "NRD"]
+                ),
+                "Area": st.column_config.NumberColumn(
+                    "Area",
+                    min_value=0.0,
+                    format="%.2f"
+                ),
+                "Plano": st.column_config.SelectboxColumn(
+                    "Plano",
+                    options=["REFORMA PLANO A", "REFORMA PLANO B"]
+                ),
+                "Projeto": st.column_config.SelectboxColumn(
+                    "Projeto",
+                    options=["OK", ""]
+                ),
+                "Aprovado": st.column_config.SelectboxColumn(
+                    "Aprovado",
+                    options=["OK", ""]
+                ),
+                "Sistematizacao": st.column_config.SelectboxColumn(
+                    "Sistematizacao",
+                    options=["OK", ""]
+                ),
+                "Loc": st.column_config.SelectboxColumn(
+                    "Loc",
+                    options=["OK", ""]
+                ),
+                "Pre_Plantio": st.column_config.SelectboxColumn(
+                    "Pre_Plantio",
+                    options=["OK", ""]
+                ),
                 "DELETE": st.column_config.CheckboxColumn(
                     "Excluir",
                     help="Selecione para excluir a linha",
@@ -565,25 +651,12 @@ def registrar_atividades():
                 if "DELETE" in df_editado.columns:
                     df_editado = df_editado[~df_editado["DELETE"]]
                     df_editado = df_editado.drop(columns=["DELETE"])
-
-                # Criar uma nova planilha com os dados atualizados
-                worksheet = get_worksheet(opcao)
-                if worksheet is not None:
-                    # Limpar a planilha atual
-                    worksheet.clear()
-                    
-                    # Adicionar cabeçalhos
-                    headers = df_editado.columns.tolist()
-                    worksheet.append_row(headers)
-                    
-                    # Adicionar dados
-                    worksheet.append_rows(df_editado.values.tolist())
-                    
-                    # Limpar o cache para forçar recarregamento dos dados
-                    st.cache_data.clear()
-                    
+                
+                # Atualizar a planilha
+                if update_sheet(df_editado, opcao):
                     st.success(f"Dados de {opcao} atualizados com sucesso!")
                     st.rerun()
+                    
             except Exception as e:
                 st.error(f"Erro ao salvar alterações: {str(e)}")
 
@@ -975,12 +1048,11 @@ def acompanhamento_reforma_passagem():
         labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
     )
 
-    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition="outside")
+    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%")
 
     fig.update_layout(
-        showlegend=False,
-        margin=dict(l=10, r=10, t=10, b=10),
-        xaxis=dict(range=[0, 105], showgrid=True, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
+        showlegend=False,  
+        xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
         yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
     )
 
@@ -1229,6 +1301,17 @@ def atividades_extras():
         use_container_width=True,
         hide_index=True,
         column_config={
+            "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            "Colaborador": st.column_config.SelectboxColumn(
+                "Colaborador",
+                options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"]
+            ),
+            "Atividade": st.column_config.SelectboxColumn(
+                "Atividade",
+                options=["Impressão de Mapa", "Voo com drone", "Mapa", "Tematização de mapa", 
+                        "Processamento", "Projeto", "Outro"]
+            ),
+            "Horas": st.column_config.TimeColumn("Horas", format="HH:mm:ss"),
             "DELETE": st.column_config.CheckboxColumn(
                 "Excluir",
                 help="Selecione para excluir a linha",
@@ -1244,25 +1327,15 @@ def atividades_extras():
             if "DELETE" in df_editado.columns:
                 df_editado = df_editado[~df_editado["DELETE"]]
                 df_editado = df_editado.drop(columns=["DELETE"])
-
-            # Criar uma nova planilha com os dados atualizados
-            worksheet = get_worksheet("AtividadesExtras")
-            if worksheet is not None:
-                # Limpar a planilha atual
-                worksheet.clear()
-                
-                # Adicionar cabeçalhos
-                headers = df_editado.columns.tolist()
-                worksheet.append_row(headers)
-                
-                # Adicionar dados
-                worksheet.append_rows(df_editado.values.tolist())
-                
-                # Limpar o cache para forçar recarregamento dos dados
-                st.cache_data.clear()
-                
+            
+            # Converter datas para o formato correto
+            df_editado["Data"] = pd.to_datetime(df_editado["Data"], format="%d/%m/%Y")
+            
+            # Atualizar a planilha
+            if update_sheet(df_editado, "AtividadesExtras"):
                 st.success("Dados atualizados com sucesso!")
                 st.rerun()
+                
         except Exception as e:
             st.error(f"Erro ao salvar alterações: {str(e)}")
 
