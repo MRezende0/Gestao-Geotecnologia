@@ -136,10 +136,10 @@ def append_to_sheet(data_dict, sheet_name):
         # Clear cache to force data reload
         st.cache_data.clear()
         
-        st.success(f"Dados registrados com sucesso na aba {sheet_name}!")
+        # st.success(f"Dados registrados com sucesso na aba {sheet_name}!")
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
+        # st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
         return False
 
 ########################################## FUNÇÕES DE CARREGAMENTO DE DADOS ##########################################
@@ -280,7 +280,7 @@ def dashboard():
             margin=dict(l=10, r=10, t=10, b=10),
             xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False)
         )
-        st.plotly_chart(fig_responsavel)
+        st.plotly_chart(fig_responsavel, use_container_width=True)
     
     # Gráfico: Quantidade de Projetos por Tipo
     with col2:
@@ -301,7 +301,7 @@ def dashboard():
             margin=dict(l=10, r=10, t=10, b=10),
             yaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
         )
-        st.plotly_chart(fig_tipo)
+        st.plotly_chart(fig_tipo, use_container_width=True)
     
     # Gráfico: Status dos Projetos
     with col1:
@@ -323,7 +323,7 @@ def dashboard():
             margin=dict(l=10, r=10, t=10, b=10),
             xaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
         )
-        st.plotly_chart(fig_status)
+        st.plotly_chart(fig_status, use_container_width=True)
     
     # Gráfico: Projetos por Unidade
     with col2:
@@ -338,7 +338,7 @@ def dashboard():
             hole=0.3,
             labels={'Quantidade de Projetos': 'Porcentagem de Projetos'}
         )
-        st.plotly_chart(fig_pizza)
+        st.plotly_chart(fig_pizza, use_container_width=True)
     
     st.divider()
     
@@ -388,11 +388,11 @@ def dashboard():
     
     st.divider()
     
-    # Ordenar e exibir a tabela de tarefas
-    # Se a coluna "id" for apenas o Firestore document id (string), pode ser ordenada ou exibida conforme necessário.
-    # Caso deseje ordenar por data ou outro campo, adapte o sort_values() conforme necessário.
+    # Tabela
+    st.write("### Detalhes das Tarefas")
     df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False).reset_index(drop=True)
-    st.table(df_tarefas_ordenado)
+    df_tarefas_ordenado = df_tarefas[["Data", "Setor", "Colaborador", "Tipo", "Status", "Unidade", "Area"]]
+    st.dataframe(df_tarefas_ordenado, use_container_width=True, hide_index=True)
 
 ########################################## REGISTRAR ##########################################
 
@@ -425,9 +425,9 @@ def registrar_atividades():
                         "Status": Status
                     }
                     append_to_sheet(nova_tarefa, "Tarefas")
-                    st.success("Tarefa registrada com sucesso!")
+                    st.success(f"Parabéns, {Colaborador}! Tarefa do setor {Setor} registrada com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao registrar tarefa: {e}")
+                    st.error(f"{Colaborador}, erro ao registrar a tarefa do setor {Setor}: {e}")
 
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
@@ -452,19 +452,13 @@ def registrar_atividades():
                         "Horas": Horas
                     }
                     append_to_sheet(nova_atividade, "AtividadesExtras")
-                    st.success("Atividade Extra registrada com sucesso!")
+                    st.success(f"Parabéns, {Colaborador}! Atividade Extra ({Atividade}) registrada com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao registrar: {e}")
+                    st.error(f"Erro ao registrar a Atividade Extra ({Atividade}): {e}")
 
     # Formulário para Reforma e Passagem
     elif tipo_atividade == "Reforma e Passagem":
         opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Passagem"])
-        
-        # Carregar dados
-        # if opcao == "Reforma":
-        #     df = carregar_reforma()
-        # else:
-        #     df = carregar_passagem()
             
         df_editado = st.data_editor(df, num_rows="dynamic")
 
@@ -620,9 +614,9 @@ def registrar_atividades():
                         "Observacao": Observacao
                     }
                     append_to_sheet(nova_auditoria, "Auditoria")
-                    st.success("Auditoria registrada com sucesso!")
+                    st.success(f"Parabéns! Auditoria do setor {Setor} registrada com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao registrar: {e}")
+                    st.error(f"Erro ao registrar a auditoria do setor {Setor}: {e}")
 
 ########################################## ATIVIDADES ##########################################
 
@@ -768,145 +762,145 @@ if "projeto_selecionado" in st.session_state:
 ########################################## REFORMA E PASSAGEM ##########################################
 
 # Página de Acompanhamento Reforma e Passagem
-# def acompanhamento_reforma_passagem():
+def acompanhamento_reforma_passagem():
 
-#     st.title("🌱 Reforma e Passagem")
+    st.title("🌱 Reforma e Passagem")
 
-#     # Lista d# Lista de categorias e colunas correspondentes no DataFrame
-#     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematização", "LOC", "Pré-Plantio"]
-#     colunas = ["Projeto", "Projeto", "APROVADO", "SISTEMATIZAÇÃO", "LOC", "PRE PLANTIO"]
+    # Lista d# Lista de categorias e colunas correspondentes no DataFrame
+    categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematização", "LOC", "Pré-Plantio"]
+    colunas = ["Projeto", "Projeto", "APROVADO", "SISTEMATIZAÇÃO", "LOC", "PRE PLANTIO"]
 
-#     # Criar um dicionário para armazenar os valores
-#     data_reforma = {"Categoria": categorias}
-#     data_passagem = {"Categoria": categorias}
-#     data = {"Categoria": categorias}
+    # Criar um dicionário para armazenar os valores
+    data_reforma = {"Categoria": categorias}
+    data_passagem = {"Categoria": categorias}
+    data = {"Categoria": categorias}
 
-# ######################## REFORMA ########################
+######################## REFORMA ########################
 
-#     for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-#         unidade_area = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
-#         valores_reforma = []
-#         for coluna, categoria in zip(colunas, categorias):
-#             if categoria == "Em andamento":
-#                 filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
-#             else:
-#                 filtro = df_reforma[coluna] == "OK"
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
+        valores_reforma = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_reforma[coluna] == "OK"
             
-#             area_categoria = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A") & filtro]["ÁREA"].sum()
-#             porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-#             valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-#         data_reforma[nome] = valores_reforma
+            area_categoria = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A") & filtro]["ÁREA"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_reforma[nome] = valores_reforma
 
-#     # Calcular a média das porcentagens para cada categoria na tabela de Reforma
-#     media_grupo_cocal_reforma = []
-#     for i in range(len(categorias)):
-#         # Convertendo os valores para números e calculando a média
-#         media = (float(data_reforma["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
-#                 float(data_reforma["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+    # Calcular a média das porcentagens para cada categoria na tabela de Reforma
+    media_grupo_cocal_reforma = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_reforma["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_reforma["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
         
-#         # Formatando a média como porcentagem
-#         media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        # Formatando a média como porcentagem
+        media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
 
-#     # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
-#     data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
+    data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
 
-#     # Criar DataFrame para exibição
-#     df_metrica_reforma = pd.DataFrame(data_reforma)
+    # Criar DataFrame para exibição
+    df_metrica_reforma = pd.DataFrame(data_reforma)
 
-# ######################## PASSAGEM ########################
+######################## PASSAGEM ########################
 
-#     # Resetar o dicionário para a tabela de Passagem
-#     data_passagem = {"Categoria": categorias}
+    # Resetar o dicionário para a tabela de Passagem
+    data_passagem = {"Categoria": categorias}
 
-#     for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-#         unidade_area = df_passagem[(df_passagem["UNIDADE"] == unidade)]["ÁREA"].sum()
-#         valores_passagem = []
-#         for coluna, categoria in zip(colunas, categorias):
-#             if categoria == "Em andamento":
-#                 filtro = df_passagem["Projeto"] == "EM ANDAMENTO"
-#             else:
-#                 filtro = df_passagem[coluna] == "OK"
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_passagem[(df_passagem["UNIDADE"] == unidade)]["ÁREA"].sum()
+        valores_passagem = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_passagem["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_passagem[coluna] == "OK"
             
-#             area_categoria = df_passagem[(df_passagem["UNIDADE"] == unidade) & filtro]["ÁREA"].sum()
-#             porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-#             valores_passagem.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-#         data_passagem[nome] = valores_passagem
+            area_categoria = df_passagem[(df_passagem["UNIDADE"] == unidade) & filtro]["ÁREA"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_passagem.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_passagem[nome] = valores_passagem
 
-#     # Calcular a média das porcentagens para cada categoria na tabela de Passagem
-#     media_grupo_cocal_passagem = []
-#     for i in range(len(categorias)):
-#         # Convertendo os valores para números e calculando a média
-#         media = (float(data_passagem["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
-#                 float(data_passagem["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+    # Calcular a média das porcentagens para cada categoria na tabela de Passagem
+    media_grupo_cocal_passagem = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_passagem["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_passagem["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
         
-#         # Formatando a média como porcentagem
-#         media_grupo_cocal_passagem.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        # Formatando a média como porcentagem
+        media_grupo_cocal_passagem.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
 
-#     # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Passagem
-#     data_passagem["Grupo Cocal"] = media_grupo_cocal_passagem
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Passagem
+    data_passagem["Grupo Cocal"] = media_grupo_cocal_passagem
 
-#     # Criar DataFrame para exibição
-#     df_metrica_passagem = pd.DataFrame(data_passagem)
+    # Criar DataFrame para exibição
+    df_metrica_passagem = pd.DataFrame(data_passagem)
 
-######################## GRÁFICO ########################
+####################### GRÁFICO ########################
 
-    # # Divide a tela em 3 colunas
-    # col1, col2 = st.columns(2)
+    # Divide a tela em 3 colunas
+    col1, col2 = st.columns(2)
 
-    # with col1:
-    #     # Criando opções de seleção para visualizar os dados
-    #     opcao_tipo = st.selectbox("Selecione o tipo de acompanhamento:", ["Reforma", "Passagem"])
+    with col1:
+        # Criando opções de seleção para visualizar os dados
+        opcao_tipo = st.selectbox("Selecione o tipo de acompanhamento:", ["Reforma", "Passagem"])
 
-    # with col2:
-    #     opcao_visualizacao = st.selectbox("Selecione a unidade:", ["Grupo Cocal", "Paraguaçu", "Narandiba"])
+    with col2:
+        opcao_visualizacao = st.selectbox("Selecione a unidade:", ["Grupo Cocal", "Paraguaçu", "Narandiba"])
 
-    # # Escolher qual DataFrame usar com base na seleção
-    # if opcao_tipo == "Reforma":
-    #     df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
-    # else:
-    #     df_selecionado = df_metrica_passagem[["Categoria", opcao_visualizacao]]
+    # Escolher qual DataFrame usar com base na seleção
+    if opcao_tipo == "Reforma":
+        df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
+    else:
+        df_selecionado = df_metrica_passagem[["Categoria", opcao_visualizacao]]
 
-    # df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
+    df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
 
-    # # Convertendo os valores de string para número
-    # df_selecionado["Porcentagem"] = df_selecionado["Porcentagem"].str.replace("%", "").str.replace(",", ".").astype(float)
+    # Convertendo os valores de string para número
+    df_selecionado["Porcentagem"] = df_selecionado["Porcentagem"].str.replace("%", "").str.replace(",", ".").astype(float)
 
-    # # Criando o gráfico dinâmico
-    # fig = px.bar(
-    #     df_selecionado,
-    #     x="Porcentagem",
-    #     y="Categoria",
-    #     orientation="h",
-    #     text="Porcentagem",
-    #     labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
-    # )
+    # Criando o gráfico dinâmico
+    fig = px.bar(
+        df_selecionado,
+        x="Porcentagem",
+        y="Categoria",
+        orientation="h",
+        text="Porcentagem",
+        labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
+    )
 
-    # fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition="outside")
+    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition="outside")
 
-    # fig.update_layout(
-    #     showlegend=False,
-    #     margin=dict(l=10, r=10, t=10, b=10),
-    #     xaxis=dict(range=[0, 105], showgrid=True, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
-    #     yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
-    # )
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(range=[0, 105], showgrid=True, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
+        yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+    )
 
-    # # Exibir o gráfico dinâmico no Streamlit
-    # st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
-    # st.plotly_chart(fig)
+    # Exibir o gráfico dinâmico no Streamlit
+    st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
+    st.plotly_chart(fig)
 
-######################## TABELAS ########################
+####################### TABELAS ########################
 
-    # st.divider()
+    st.divider()
 
-    # # Métricas de Reforma
-    # st.write("### Métricas de Reforma")
-    # st.dataframe(df_metrica_reforma, use_container_width=True, hide_index=True)
+    # Métricas de Reforma
+    st.write("### Métricas de Reforma")
+    st.dataframe(df_metrica_reforma, use_container_width=True, hide_index=True)
 
-    # st.divider()
+    st.divider()
 
-    # # Métricas de Passagem
-    # st.write("### Métricas de Passagem")
-    # st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
+    # Métricas de Passagem
+    st.write("### Métricas de Passagem")
+    st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
 
 ########################################## AUDITORIA ##########################################
 
