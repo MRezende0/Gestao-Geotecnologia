@@ -391,7 +391,7 @@ def dashboard():
     # Ordenar e exibir a tabela de tarefas
     # Se a coluna "id" for apenas o Firestore document id (string), pode ser ordenada ou exibida conforme necessário.
     # Caso deseje ordenar por data ou outro campo, adapte o sort_values() conforme necessário.
-    df_tarefas_ordenado = df_tarefas.sort_values(by="id", ascending=False).reset_index(drop=True)
+    df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False).reset_index(drop=True)
     st.table(df_tarefas_ordenado)
 
 ########################################## REGISTRAR ##########################################
