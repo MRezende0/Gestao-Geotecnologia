@@ -468,7 +468,7 @@ def registrar_atividades():
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
-            Tipo = st.selectbox("Tipo", ["", "Projeto", "Mapa", "Auditoria", "Outro"])
+            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "Projeto LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"])
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
@@ -652,7 +652,7 @@ def registrar_atividades():
         with st.form("form_auditoria"):
             st.subheader("Auditoria")
             Data = st.date_input("Auditoria referente à")
-            Auditores = st.multiselect("Auditores", ["Camila", "Guilherme", "Maico", "Sebastião", "Willian"])
+            Auditores = st.multiselect("Auditores", ["", "Camila", "Guilherme", "Maico", "Sebastião", "Willian", "Outro"])
             Unidade = st.selectbox("Unidade", ["", "Paraguaçu", "Narandiba"])
             Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
             TipoPlantio_Planejado = st.selectbox("Tipo de Plantio Planejado", ["", "ESD", "Convencional", "ESD e Convencional"])
@@ -815,12 +815,12 @@ if "projeto_selecionado" in st.session_state:
         with st.form(key="edit_form"):
             Data = st.date_input("Data", value=datetime.today().date())
             Setor = st.number_input("Setor", value=tarefa["Setor"])
-            Colaborador = st.selectbox("Colaborador", options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
-                                     index=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
-            Tipo = st.selectbox("Tipo", options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"],
-                              index=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
-            Status = st.selectbox("Status", options=["A fazer", "Em andamento", "A validar", "Concluído"],
-                                index=["A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
+            Colaborador = st.selectbox("Colaborador", options=["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
+                                     index=["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"].index(tarefa["Colaborador"]))
+            Tipo = st.selectbox("Tipo", options=["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"],
+                              index=["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Auditoria", "Projeto de Fertirrigação", "Projeto de Sulcação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"].index(tarefa["Tipo"]))
+            Status = st.selectbox("Status", options=["", "A fazer", "Em andamento", "A validar", "Concluído"],
+                                index=["", "A fazer", "Em andamento", "A validar", "Concluído"].index(tarefa["Status"]))
 
             col1, col2 = st.columns(2)
             with col1:
