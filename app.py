@@ -76,8 +76,8 @@ def get_google_sheets_client():
         # Tentar carregar credenciais do Streamlit Cloud
         if 'GOOGLE_CREDENTIALS' in st.secrets:
             # Usar credenciais do Streamlit Cloud
-            credentials_dict = json.loads(st.secrets['GOOGLE_CREDENTIALS'])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+            credentials_dict = json.loads(st.secrets['GCP']['GOOGLE_CREDENTIALS'])
+            creds = ServiceAccountCredentials.from_service_account_info(credentials_dict, scope)
         else:
             # Usar arquivo local auth.json
             creds = ServiceAccountCredentials.from_json_keyfile_name('auth.json', scope)
