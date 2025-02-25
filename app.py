@@ -11,6 +11,7 @@ import plotly.express as px
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2 import service_account
+import streamlit.components.v1 as components
 
 # Corrigir erro de certificado SSL em alguns ambientes locais
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -865,9 +866,9 @@ def acompanhamento_reforma_passagem():
 
     st.title("🌱 Reforma e Passagem")
 
-    # Lista d# Lista de categorias e colunas correspondentes no DataFrame
-    categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematização", "LOC", "Pré-Plantio"]
-    colunas = ["Projeto", "Projeto", "APROVADO", "SISTEMATIZAÇÃO", "LOC", "PRE PLANTIO"]
+    # Lista de categorias e colunas correspondentes no DataFrame
+    categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
+    colunas = ["Projeto", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
 
     # Criar um dicionário para armazenar os valores
     data_reforma = {"Categoria": categorias}
@@ -877,7 +878,7 @@ def acompanhamento_reforma_passagem():
 ######################## REFORMA ########################
 
     for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-        unidade_area = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A")]["ÁREA"].sum()
+        unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
         valores_reforma = []
         for coluna, categoria in zip(colunas, categorias):
             if categoria == "Em andamento":
@@ -885,7 +886,7 @@ def acompanhamento_reforma_passagem():
             else:
                 filtro = df_reforma[coluna] == "OK"
             
-            area_categoria = df_reforma[(df_reforma["UNIDADE"] == unidade) & (df_reforma["PLANO"] == "REFORMA PLANO A") & filtro]["ÁREA"].sum()
+            area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
             porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
             valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
         data_reforma[nome] = valores_reforma
@@ -912,7 +913,7 @@ def acompanhamento_reforma_passagem():
     data_passagem = {"Categoria": categorias}
 
     for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-        unidade_area = df_passagem[(df_passagem["UNIDADE"] == unidade)]["ÁREA"].sum()
+        unidade_area = df_passagem[(df_passagem["Unidade"] == unidade)]["Area"].sum()
         valores_passagem = []
         for coluna, categoria in zip(colunas, categorias):
             if categoria == "Em andamento":
@@ -920,7 +921,7 @@ def acompanhamento_reforma_passagem():
             else:
                 filtro = df_passagem[coluna] == "OK"
             
-            area_categoria = df_passagem[(df_passagem["UNIDADE"] == unidade) & filtro]["ÁREA"].sum()
+            area_categoria = df_passagem[(df_passagem["Unidade"] == unidade) & filtro]["Area"].sum()
             porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
             valores_passagem.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
         data_passagem[nome] = valores_passagem
@@ -986,6 +987,18 @@ def acompanhamento_reforma_passagem():
     # Exibir o gráfico dinâmico no Streamlit
     st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
     st.plotly_chart(fig)
+
+####################### MAPA ########################
+
+    st.divider()
+
+    st.subheader("Mapa")
+
+    # Exemplo: adicionando um parâmetro (verifique na documentação se 'scrollWheelZoom' está disponível)
+    url_mapa = ("https://cocal.maps.arcgis.com/apps/Embed/index.html?"
+                "webmap=e8cd98419206476ca3d0dc64bd12f93f&scrollWheelZoom=true")
+
+    components.iframe(url_mapa, height=400, scrolling=True)
 
 ####################### TABELAS ########################
 
