@@ -7,6 +7,10 @@ import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2 import service_account
+import ssl
+
+# Corrigir erro de certificado SSL em alguns ambientes locais
+ssl._create_default_https_context = ssl._create_unverified_context
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -69,18 +73,12 @@ SHEET_GIDS = {
 def get_google_sheets_client():
     """Initialize and return Google Sheets client"""
     try:
-        # Definir os escopos necessários
         scope = ['https://spreadsheets.google.com/feeds',
-                'https://www.googleapis.com/auth/drive']
+                 'https://www.googleapis.com/auth/drive']
 
-        # Tentar carregar credenciais do Streamlit Cloud
-        if 'GOOGLE_CREDENTIALS' in st.secrets:
-            # Usar credenciais do Streamlit Cloud
-            credentials_dict = json.loads(st.secrets['GCP']['GOOGLE_CREDENTIALS'])
-            creds = ServiceAccountCredentials.from_service_account_info(credentials_dict, scope)
-        else:
-            # Usar arquivo local auth.json
-            creds = ServiceAccountCredentials.from_json_keyfile_name('auth.json', scope)
+        # Usar apenas as credenciais do Streamlit Secrets
+        credentials_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
         
         return gspread.authorize(creds)
     except Exception as e:
