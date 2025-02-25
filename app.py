@@ -8,6 +8,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2 import service_account
 import ssl
+import glob
 
 # Corrigir erro de certificado SSL em alguns ambientes locais
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -66,7 +67,9 @@ SHEET_GIDS = {
     "Tarefas": "0",
     "AtividadesExtras": "1017708666",
     "Auditoria": "543590152",
-    "Base": "503847224"
+    "Base": "503847224",
+    "Reforma": "1252125692",
+    "Passagem": "2099988266"
 }
 
 @st.cache_resource
@@ -169,6 +172,15 @@ def carregar_dados_base():
         df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
 
+# Funções para carregar dados de reforma e passagem
+@st.cache_data(ttl=60)
+def carregar_reforma():
+    return load_data("Reforma")
+
+@st.cache_data(ttl=60)
+def carregar_passagem():
+    return load_data("Passagem")
+
 ########################################## DADOS ##########################################
 
 # Caminho dos arquivos CSV/Excel para dados auxiliares (se necessário)
@@ -194,11 +206,11 @@ def carregar_dados(caminho, colunas=None, aba=None):
     else:
         return pd.DataFrame(columns=colunas)
 
-# df_passagem = carregar_passagem()
-# df_reforma = carregar_reforma()
 df_tarefas = carregar_tarefas()
 df_extras = carregar_atividades_extras()
 df_auditoria = carregar_auditoria()
+df_reforma = carregar_reforma()
+df_passagem = carregar_passagem()
 
 # Carrega os dados auxiliares
 df_base = carregar_dados(BASE_PATH, ["Unidade", "Setor", "Area"])
@@ -392,7 +404,52 @@ def dashboard():
     st.write("### Detalhes das Tarefas")
     df_tarefas_ordenado = df_tarefas.sort_values(by="Data", ascending=False).reset_index(drop=True)
     df_tarefas_ordenado = df_tarefas[["Data", "Setor", "Colaborador", "Tipo", "Status", "Unidade", "Area"]]
-    st.dataframe(df_tarefas_ordenado, use_container_width=True, hide_index=True)
+    df_tarefas_display = df_tarefas_ordenado[["Data", "Setor", "Colaborador", "Tipo", "Status"]]
+    df_tarefas_display["Data"] = pd.to_datetime(df_tarefas_display["Data"]).dt.strftime("%d/%m/%Y")
+    
+    # Criar um editor de dados com funcionalidade de exclusão de linhas
+    df_editado = st.data_editor(
+        df_tarefas_display,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "DELETE": st.column_config.CheckboxColumn(
+                "Excluir",
+                help="Selecione para excluir a linha",
+                default=False
+            )
+        }
+    )
+
+    # Botão para salvar alterações
+    if st.button("Salvar Alterações"):
+        try:
+            # Remover linhas marcadas para exclusão
+            if "DELETE" in df_editado.columns:
+                df_editado = df_editado[~df_editado["DELETE"]]
+                df_editado = df_editado.drop(columns=["DELETE"])
+
+            # Criar uma nova planilha com os dados atualizados
+            worksheet = get_worksheet("Tarefas")
+            if worksheet is not None:
+                # Limpar a planilha atual
+                worksheet.clear()
+                
+                # Adicionar cabeçalhos
+                headers = df_editado.columns.tolist()
+                worksheet.append_row(headers)
+                
+                # Adicionar dados
+                worksheet.append_rows(df_editado.values.tolist())
+                
+                # Limpar o cache para forçar recarregamento dos dados
+                st.cache_data.clear()
+                
+                st.success("Dados atualizados com sucesso!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao salvar alterações: {str(e)}")
 
 ########################################## REGISTRAR ##########################################
 
@@ -459,23 +516,56 @@ def registrar_atividades():
     # Formulário para Reforma e Passagem
     elif tipo_atividade == "Reforma e Passagem":
         opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Passagem"])
+        
+        # Carregar os dados apropriados
+        if opcao == "Reforma":
+            df_editavel = carregar_reforma()
+        else:
+            df_editavel = carregar_passagem()
             
-        df_editado = st.data_editor(df, num_rows="dynamic")
+        # Criar um editor de dados com funcionalidade de exclusão de linhas
+        df_editado = st.data_editor(
+            df_editavel,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "DELETE": st.column_config.CheckboxColumn(
+                    "Excluir",
+                    help="Selecione para excluir a linha",
+                    default=False
+                )
+            }
+        )
 
-        # Botão para salvar alterações no Excel
+        # Botão para salvar alterações
         if st.button("Salvar Alterações"):
-            # Apagar todos os documentos existentes
-            # batch = db.batch()
-            # coll_ref = db.collection(opcao.lower())
-            # docs = coll_ref.stream()
-            # for doc in docs:
-            #     batch.delete(doc.reference)
-            # batch.commit()
-            
-            # Adicionar novos documentos
-            for _, row in df_editado.iterrows():
-                append_to_sheet(row.to_dict(), opcao.lower())
-            st.success("Dados atualizados com sucesso!")
+            try:
+                # Remover linhas marcadas para exclusão
+                if "DELETE" in df_editado.columns:
+                    df_editado = df_editado[~df_editado["DELETE"]]
+                    df_editado = df_editado.drop(columns=["DELETE"])
+
+                # Criar uma nova planilha com os dados atualizados
+                worksheet = get_worksheet(opcao)
+                if worksheet is not None:
+                    # Limpar a planilha atual
+                    worksheet.clear()
+                    
+                    # Adicionar cabeçalhos
+                    headers = df_editado.columns.tolist()
+                    worksheet.append_row(headers)
+                    
+                    # Adicionar dados
+                    worksheet.append_rows(df_editado.values.tolist())
+                    
+                    # Limpar o cache para forçar recarregamento dos dados
+                    st.cache_data.clear()
+                    
+                    st.success(f"Dados de {opcao} atualizados com sucesso!")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar alterações: {str(e)}")
 
     elif tipo_atividade == "Pós-Aplicação":
         st.header("Upload de Arquivo - Pós-Aplicação")
@@ -994,9 +1084,58 @@ def auditoria():
 
     # Exibir gráfico
     st.write("### Aderência")
-    st.plotly_chart(fig_aderencia)
+    st.plotly_chart(fig_aderencia, use_container_width=True)
 
     st.divider()
+
+    # Tabela de auditoria
+    st.write("### Lista de Auditorias")
+    df_auditoria_display = df_auditoria[["Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", "TipoTerraco_Planejado", "TipoTerraco_Executado"]]
+    df_auditoria_display["Data"] = pd.to_datetime(df_auditoria_display["Data"]).dt.strftime("%d/%m/%Y")
+    
+    # Criar um editor de dados com funcionalidade de exclusão de linhas
+    df_editado = st.data_editor(
+        df_auditoria_display,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "DELETE": st.column_config.CheckboxColumn(
+                "Excluir",
+                help="Selecione para excluir a linha",
+                default=False
+            )
+        }
+    )
+
+    # Botão para salvar alterações
+    if st.button("Salvar Alterações"):
+        try:
+            # Remover linhas marcadas para exclusão
+            if "DELETE" in df_editado.columns:
+                df_editado = df_editado[~df_editado["DELETE"]]
+                df_editado = df_editado.drop(columns=["DELETE"])
+
+            # Criar uma nova planilha com os dados atualizados
+            worksheet = get_worksheet("Auditoria")
+            if worksheet is not None:
+                # Limpar a planilha atual
+                worksheet.clear()
+                
+                # Adicionar cabeçalhos
+                headers = df_editado.columns.tolist()
+                worksheet.append_row(headers)
+                
+                # Adicionar dados
+                worksheet.append_rows(df_editado.values.tolist())
+                
+                # Limpar o cache para forçar recarregamento dos dados
+                st.cache_data.clear()
+                
+                st.success("Dados atualizados com sucesso!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao salvar alterações: {str(e)}")
 
     # Exibir tabela formatada
     st.write("### Planejado x Executado")
@@ -1035,7 +1174,7 @@ def atividades_extras():
             yaxis=dict(showgrid=False, showticklabels=False, title='', showline=False, zeroline=False),
             title_font_size=24
         )
-        st.plotly_chart(fig_colab)
+        st.plotly_chart(fig_colab, use_container_width=True)
     
     # Gráfico 2: Quantidade de Atividades por Setor Solicitante
     with col2:
@@ -1051,14 +1190,57 @@ def atividades_extras():
             title_font_size=24
         )
         fig_setor.update_traces(textinfo="value")  # Mostrar os valores absolutos (quantidade)
-        st.plotly_chart(fig_setor)
+        st.plotly_chart(fig_setor, use_container_width=True)
     
     # Tabela
     # Convertendo a coluna "Data" para o formato de exibição
     df_extras["Data"] = pd.to_datetime(df_extras["Data"]).dt.strftime("%d/%m/%Y")
     st.write("### Detalhes das Atividades")
     atividades_realizadas = df_extras[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
-    st.dataframe(atividades_realizadas, use_container_width=True, hide_index=True)
+    
+    # Criar um editor de dados com funcionalidade de exclusão de linhas
+    df_editado = st.data_editor(
+        atividades_realizadas,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "DELETE": st.column_config.CheckboxColumn(
+                "Excluir",
+                help="Selecione para excluir a linha",
+                default=False
+            )
+        }
+    )
+
+    # Botão para salvar alterações
+    if st.button("Salvar Alterações"):
+        try:
+            # Remover linhas marcadas para exclusão
+            if "DELETE" in df_editado.columns:
+                df_editado = df_editado[~df_editado["DELETE"]]
+                df_editado = df_editado.drop(columns=["DELETE"])
+
+            # Criar uma nova planilha com os dados atualizados
+            worksheet = get_worksheet("AtividadesExtras")
+            if worksheet is not None:
+                # Limpar a planilha atual
+                worksheet.clear()
+                
+                # Adicionar cabeçalhos
+                headers = df_editado.columns.tolist()
+                worksheet.append_row(headers)
+                
+                # Adicionar dados
+                worksheet.append_rows(df_editado.values.tolist())
+                
+                # Limpar o cache para forçar recarregamento dos dados
+                st.cache_data.clear()
+                
+                st.success("Dados atualizados com sucesso!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao salvar alterações: {str(e)}")
 
 ########################################## FILTROS ##########################################
 
