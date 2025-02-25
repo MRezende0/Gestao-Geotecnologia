@@ -603,7 +603,8 @@ def registrar_atividades():
                 
                 # Processar dados
                 df = df[colunas]
-                df["DATA"] = pd.to_datetime(df["DATA"])
+                df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
+                df = df.dropna(subset=["DATA"])
                 df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
                 df["AREA"] = pd.to_numeric(df["AREA"], errors='coerce').fillna(0)
                 
@@ -621,7 +622,7 @@ def registrar_atividades():
                     for _, row in df.iterrows():
                         dados = {
                             "DESC_OPERAÇÃO": row["DESC_OPERAÇÃO"],
-                            "DATA": row["DATA"].strftime("%Y-%m-%d"),
+                            "DATA": row["DATA"],
                             "SETOR": int(row["SETOR"]),
                             "TALHÃO": row["TALHÃO"],
                             "AREA": float(row["AREA"])
@@ -631,7 +632,7 @@ def registrar_atividades():
                         if df_existente.empty or not (
                             (df_existente["SETOR"] == dados["SETOR"]) &
                             (df_existente["TALHÃO"] == dados["TALHÃO"]) &
-                            (df_existente["DATA"].dt.date == pd.to_datetime(dados["DATA"]).date()) &
+                            (df_existente["DATA"] == dados["DATA"]) &
                             (df_existente["DESC_OPERAÇÃO"] == dados["DESC_OPERAÇÃO"])
                         ).any():
                             novos_registros.append(dados)
