@@ -3,6 +3,8 @@ import os
 import ssl
 import glob
 from datetime import datetime, timedelta
+import time
+from random import uniform
 
 # Third-party imports
 import streamlit as st
@@ -98,24 +100,110 @@ def get_google_sheets_client():
         st.error(f"Erro ao conectar com Google Sheets: {str(e)}")
         return None
 
-def get_worksheet(sheet_name):
-    """Get specific worksheet from Google Sheets"""
-    try:
-        client = get_google_sheets_client()
-        if client is None:
+def get_worksheet(sheet_name: str):
+    """
+    Get specific worksheet from Google Sheets with retry mechanism.
+    
+    Args:
+        sheet_name: Nome da aba da planilha
+        
+    Returns:
+        gspread.Worksheet or None: Worksheet object or None if error occurs
+    """
+    def _get_worksheet():
+        try:
+            client = get_google_sheets_client()
+            if client is None:
+                st.error("Erro ao conectar com Google Sheets. Tente novamente mais tarde.")
+                return None
+                
+            spreadsheet = client.open_by_key(SHEET_ID)
+            worksheet = spreadsheet.worksheet(sheet_name)
+            return worksheet
+        except Exception as e:
+            if "Quota exceeded" in str(e):
+                raise e  # Re-raise quota errors to trigger retry
+            st.error(f"Erro ao acessar planilha {sheet_name}: {str(e)}")
             return None
-        
-        # Abrir a planilha pelo ID
-        sheet = client.open_by_key(SHEET_ID)
-        
-        # Obter a worksheet pelo gid
-        worksheet = sheet.get_worksheet_by_id(int(SHEET_GIDS[sheet_name]))
-        return worksheet
-    except Exception as e:
-        st.error(f"Erro ao acessar planilha {sheet_name}: {str(e)}")
-        return None
+            
+    return retry_with_backoff(_get_worksheet, max_retries=5, initial_delay=2)
 
-@st.cache_data(ttl=60)
+def retry_with_backoff(func, max_retries=5, initial_delay=1):
+    """
+    Executa uma função com retry e exponential backoff
+    
+    Args:
+        func: Função a ser executada
+        max_retries: Número máximo de tentativas
+        initial_delay: Delay inicial em segundos
+        
+    Returns:
+        Resultado da função ou None se falhar
+    """
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if "Quota exceeded" not in str(e):
+                st.error(f"Erro inesperado: {str(e)}")
+                return None
+                
+            if attempt == max_retries - 1:
+                st.error("Limite de tentativas excedido. Tente novamente mais tarde.")
+                return None
+                
+            # Exponential backoff com jitter
+            delay = initial_delay * (2 ** attempt) + uniform(0, 1)
+            time.sleep(delay)
+            
+            # Informar usuário sobre retry
+            st.warning(f"Limite de requisições atingido. Tentando novamente em {delay:.1f} segundos...")
+            
+    return None
+
+def append_to_sheet(data_dict, sheet_name):
+    """
+    Append new data to the Google Sheet with retry mechanism
+    
+    Args:
+        data_dict: Dictionary with data to append
+        sheet_name: Nome da aba da planilha
+        
+    Returns:
+        bool: True if success, False if error
+    """
+    def _append():
+        try:
+            worksheet = get_worksheet(sheet_name)
+            if worksheet is None:
+                return False
+                
+            # Converter objetos datetime para strings
+            for key in data_dict:
+                if isinstance(data_dict[key], (datetime, pd.Timestamp)):
+                    data_dict[key] = data_dict[key].strftime("%Y-%m-%d")
+                    
+            # Get headers from worksheet
+            headers = worksheet.row_values(1)
+            
+            # Create new row based on headers
+            row = [data_dict.get(header, "") for header in headers]
+            
+            # Append row to worksheet
+            worksheet.append_row(row)
+            
+            # Clear cache to force data reload
+            st.cache_data.clear()
+            return True
+            
+        except Exception as e:
+            if "Quota exceeded" in str(e):
+                raise e  # Re-raise quota errors to trigger retry
+            st.error(f"Erro ao adicionar dados: {str(e)}")
+            return False
+            
+    return retry_with_backoff(_append, initial_delay=2)
+
 def load_data(sheet_name: str) -> pd.DataFrame:
     """
     Carrega dados de uma aba específica da planilha Google Sheets.
@@ -126,81 +214,54 @@ def load_data(sheet_name: str) -> pd.DataFrame:
     Returns:
         DataFrame com os dados carregados
     """
-    try:
+    def _load():
         worksheet = get_worksheet(sheet_name)
         if worksheet is None:
             return pd.DataFrame()
             
         data = worksheet.get_all_records()
         return pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Erro ao carregar dados da planilha {sheet_name}: {str(e)}")
-        return pd.DataFrame()
-
-def append_to_sheet(data_dict, sheet_name):
-    """Append new data to the Google Sheet"""
-    try:
-        worksheet = get_worksheet(sheet_name)
-        if worksheet is None:
-            return False
-            
-        # Get headers from worksheet
-        headers = worksheet.row_values(1)
         
-        # Create row with data in correct order
-        row = [data_dict.get(header, "") for header in headers]
-        
-        # Append the row
-        worksheet.append_row(row)
-        
-        # Clear cache to force data reload
-        st.cache_data.clear()
-        
-        # st.success(f"Dados registrados com sucesso na aba {sheet_name}!")
-        return True
-    except Exception as e:
-        # st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
-        return False
+    result = retry_with_backoff(_load)
+    return result if result is not None else pd.DataFrame()
 
 def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
-    """
-    Atualiza toda a planilha com o DataFrame fornecido.
-    
-    Args:
-        df: DataFrame com os dados atualizados
-        sheet_name: Nome da aba da planilha
-        
-    Returns:
-        bool: True se sucesso, False se erro
-    """
-    try:
-        worksheet = get_worksheet(sheet_name)
-        if worksheet is None:
+    def _update():
+        try:
+            # Criar uma cópia do DataFrame para não modificar o original
+            df_copy = df.copy()
+            
+            # Converter todas as colunas de data para string no formato YYYY-MM-DD
+            date_columns = df_copy.select_dtypes(include=['datetime64[ns]']).columns
+            for col in date_columns:
+                df_copy[col] = df_copy[col].dt.strftime("%Y-%m-%d")
+            
+            # Converter todos os valores NaN/None para string vazia
+            df_copy = df_copy.fillna("")
+            
+            worksheet = get_worksheet(sheet_name)
+            if worksheet is None:
+                return False
+                
+            # Limpar a planilha
+            worksheet.clear()
+            
+            # Obter os dados do DataFrame como lista
+            data = [df_copy.columns.tolist()] + df_copy.values.tolist()
+            
+            # Atualizar a planilha
+            worksheet.update(data)
+            
+            # Limpar cache para forçar recarregamento dos dados
+            st.cache_data.clear()
+            return True
+        except Exception as e:
+            if "Quota exceeded" in str(e):
+                raise e
+            st.error(f"Erro ao atualizar planilha: {str(e)}")
             return False
             
-        # Limpar a planilha atual
-        worksheet.clear()
-        
-        # Adicionar cabeçalhos
-        headers = df.columns.tolist()
-        worksheet.append_row(headers)
-        
-        # Converter datas para string no formato correto
-        if "Data" in df.columns:
-            df["Data"] = pd.to_datetime(df["Data"]).dt.strftime("%Y-%m-%d")
-        elif "DATA" in df.columns:
-            df["DATA"] = pd.to_datetime(df["DATA"]).dt.strftime("%Y-%m-%d")
-            
-        # Adicionar dados
-        worksheet.append_rows(df.values.tolist())
-        
-        # Limpar cache
-        st.cache_data.clear()
-        return True
-        
-    except Exception as e:
-        st.error(f"Erro ao atualizar planilha {sheet_name}: {str(e)}")
-        return False
+    return retry_with_backoff(_update, initial_delay=2)
 
 ########################################## DADOS ##########################################
 
@@ -221,36 +282,37 @@ PASTA_POS = "dados/pos-aplicacao"
 ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
 @st.cache_data(ttl=60)
-def carregar_tarefas() -> pd.DataFrame:
+def carregar_tarefas():
     """Carrega e formata os dados de tarefas."""
     df = load_data("Tarefas")
     if not df.empty:
         if "Data" in df.columns:
-            # Converter usando infer_datetime_format para maior flexibilidade
-            df["Data"] = pd.to_datetime(
-                df["Data"], 
-                errors='coerce',  # Converter valores inválidos para NaT
-                infer_datetime_format=True,
-                dayfirst=True  # Considerar formato dia/mês/ano
-            )
-            # Remover linhas com datas inválidas
+            df["Data"] = pd.to_datetime(df["Data"], errors='coerce', format="%Y-%m-%d")
             df = df.dropna(subset=["Data"])
         if "Setor" in df.columns:
             df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
 
 @st.cache_data(ttl=60)
-def carregar_atividades_extras() -> pd.DataFrame:
+def carregar_atividades_extras():
     """Carrega os dados de atividades extras."""
-    return load_data("AtividadesExtras")
+    df = load_data("AtividadesExtras")
+    if not df.empty and "Data" in df.columns:
+        df["Data"] = pd.to_datetime(df["Data"], errors='coerce', format="%Y-%m-%d")
+        df = df.dropna(subset=["Data"])
+    return df
 
 @st.cache_data(ttl=60)
-def carregar_auditoria() -> pd.DataFrame:
+def carregar_auditoria():
     """Carrega os dados de auditoria."""
-    return load_data("Auditoria")
+    df = load_data("Auditoria")
+    if not df.empty and "Data" in df.columns:
+        df["Data"] = pd.to_datetime(df["Data"], errors='coerce', format="%Y-%m-%d")
+        df = df.dropna(subset=["Data"])
+    return df
 
 @st.cache_data(ttl=60)
-def carregar_dados_base() -> pd.DataFrame:
+def carregar_dados_base():
     """Carrega e formata os dados base."""
     df = load_data("Base")
     if not df.empty and "Setor" in df.columns:
@@ -288,14 +350,16 @@ df_base = carregar_dados_base()
 df_pos = carregar_dados_pos()
 
 # Converter tipos das colunas dos dados auxiliares, se necessário
-if not df_tarefas.empty:
+if not df_tarefas.empty and "Setor" in df_tarefas.columns:
     df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
-df_base["Setor"] = df_base["Setor"].astype(int)
 
-# Mesclar dados auxiliares com tarefas, se necessário
-df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
-df_tarefas['Area'] = df_tarefas['Area'].fillna(0).astype(int)
-df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
+if not df_base.empty and "Setor" in df_base.columns:
+    df_base["Setor"] = df_base["Setor"].astype(int)
+    # Mesclar dados auxiliares com tarefas, se necessário
+    if not df_tarefas.empty:
+        df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
+        df_tarefas['Area'] = df_tarefas['Area'].fillna(0).astype(int)
+        df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
 
 ########################################## DASHBOARD ##########################################
 
@@ -548,7 +612,7 @@ def registrar_atividades():
             if submit:
                 try:
                     nova_tarefa = {
-                        "Data": datetime.strptime(str(Data), "%Y-%m-%d"),
+                        "Data": str(Data),
                         "Setor": int(Setor),
                         "Colaborador": Colaborador,
                         "Tipo": Tipo,
@@ -727,66 +791,130 @@ def registrar_atividades():
             except Exception as e:
                 st.error(f"Erro ao processar arquivo: {str(e)}")
 
-    # Formulário para Auditoria
     elif tipo_atividade == "Auditoria":
         with st.form("form_auditoria"):
-            st.subheader("Auditoria")
-            Data = st.date_input("Auditoria referente à")
-            Auditores = st.multiselect("Auditores", ["", "Camila", "Guilherme", "Maico", "Sebastião", "Willian", "Outro"])
+            st.subheader("Nova Auditoria")
+            
+            # Campos básicos
+            Data = st.date_input("Data referente à auditoria")
+            Auditores = st.multiselect("Auditores", ["Camila", "Maico", "Willian", "Sebastião", "Guilherme", "Outro"])
             Unidade = st.selectbox("Unidade", ["", "Paraguaçu", "Narandiba"])
-            Setor = st.number_input("Setor", min_value=0, step=1, format="%d")
-            TipoPlantio_Planejado = st.selectbox("Tipo de Plantio Planejado", ["", "ESD", "Convencional", "ESD e Convencional"])
-            TipoPlantio_Executado = st.selectbox("Tipo de Plantio Executado", ["", "ESD", "Convencional", "ESD e Convencional"])
-            TipoTerraco_Planejado = st.selectbox("Tipo de Terraço Planejado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
-            TipoTerraco_Executado = st.selectbox("Tipo de Terraço Executado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
-            QuantidadeTerraco_Planejado = st.selectbox("Quantidade de Terraços Planejado", ["", "Ok", "Não"])
-            QuantidadeTerraco_Executado = st.selectbox("Quantidade de Terraços Executado", ["", "Ok", "Não"])
-            Levantes_Planejado = st.number_input("Levantes Planejado", min_value=0, step=1)
-            Levantes_Executado = st.number_input("Levantes Executado", min_value=0, step=1)
-            LevantesDesmanche_Planejado = st.number_input("Levantes Desmanche Planejado", min_value=0, step=1)
-            LevantesDesmanche_Executado = st.number_input("Levantes Desmanche Executado", min_value=0, step=1)
-            Bigodes_Planejado = st.number_input("Bigodes Planejado", min_value=0, step=1)
-            Bigodes_Executado = st.number_input("Bigodes Executado", min_value=0, step=1)
-            BigodesDesmanche_Planejado = st.number_input("Bigodes Desmanche Planejado", min_value=0, step=1)
-            BigodesDesmanche_Executado = st.number_input("Bigodes Desmanche Executado", min_value=0, step=1)
-            Carreadores_Planejado = st.selectbox("Carreadores Planejado", ["", "Ok", "Não"])
-            Carreadores_Executado = st.selectbox("Carreadores Executado", ["", "Ok", "Não"])
-            Patios_Projetado = st.number_input("Pátios Projetado", min_value=0, step=1)
-            Patios_Executado = st.number_input("Pátios Executado", min_value=0, step=1)
+            Setor = st.number_input("Setor", min_value=0, step=1)
+            
+            # Campos de Levantes
+            col1, col2 = st.columns(2)
+            with col1:
+                Levantes_Planejado = st.number_input("Levantes Planejados", min_value=0, step=1)
+            with col2:
+                Levantes_Executado = st.number_input("Levantes Executados", min_value=0, step=1)
+                
+            # Campos de Bigodes
+            col3, col4 = st.columns(2)
+            with col3:
+                Bigodes_Planejado = st.number_input("Bigodes Planejados", min_value=0, step=1)
+            with col4:
+                Bigodes_Executado = st.number_input("Bigodes Executados", min_value=0, step=1)
+                
+            # Campos de Tipo de Plantio
+            col5, col6 = st.columns(2)
+            with col5:
+                TipoPlantio_Planejado = st.selectbox("Tipo de Plantio Planejado", ["", "ESD", "Convencional", "ESD e Convencional"])
+            with col6:
+                TipoPlantio_Executado = st.selectbox("Tipo de Plantio Executado", ["", "ESD", "Convencional", "ESD e Convencional"])
+                
+            # Campos de Tipo de Terraço
+            col7, col8 = st.columns(2)
+            with col7:
+                TipoTerraco_Planejado = st.selectbox("Tipo de Terraço Planejado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
+            with col8:
+                TipoTerraco_Executado = st.selectbox("Tipo de Terraço Executado", ["", "Base Larga", "Embutida", "ESD", "Base Large e ESD", "Base Larga e Embutida", "Embutida e ESD"])
+                
+            # Campos de Quantidade de Terraço
+            col9, col10 = st.columns(2)
+            with col9:
+                QuantidadeTerraco_Planejado = st.selectbox("Quantidade de Terraço Planejada", ["", "Ok", "Não"])
+            with col10:
+                QuantidadeTerraco_Executado = st.selectbox("Quantidade de Terraço Executada", ["", "Ok", "Não"])
+                
+            # Campos de Levantes para Desmanche
+            col11, col12 = st.columns(2)
+            with col11:
+                LevantesDesmanche_Planejado = st.number_input("Levantes para Desmanche Planejados", min_value=0, step=1)
+            with col12:
+                LevantesDesmanche_Executado = st.number_input("Levantes para Desmanche Executados", min_value=0, step=1)
+                
+            # Campos de Bigodes para Desmanche
+            col13, col14 = st.columns(2)
+            with col13:
+                BigodesDesmanche_Planejado = st.number_input("Bigodes para Desmanche Planejados", min_value=0, step=1)
+            with col14:
+                BigodesDesmanche_Executado = st.number_input("Bigodes para Desmanche Executados", min_value=0, step=1)
+                
+            # Campos de Carreadores
+            col15, col16 = st.columns(2)
+            with col15:
+                Carreadores_Planejado = st.selectbox("Carreadores Planejados", ["", "Ok", "Não"])
+            with col16:
+                Carreadores_Executado = st.selectbox("Carreadores Executados", ["", "Ok", "Não"])
+            
+            # Campos de Pátios
+            col17, col18 = st.columns(2)
+            with col17:
+                Patios_Planejado = st.number_input("Pátios Planejados", min_value=0, step=1)
+            with col18:
+                Patios_Executado = st.number_input("Pátios Executados", min_value=0, step=1)
+
             Observacao = st.text_area("Observação")
-            submit = st.form_submit_button("Registrar")
+            
+            submit = st.form_submit_button("Registrar Auditoria")
 
             if submit:
+                # Validar campos obrigatórios
+                if not Unidade:
+                    st.error("Por favor, selecione a Unidade.")
+                    return
+                if Setor == 0:
+                    st.error("Por favor, informe o Setor.")
+                    return
+                if not Auditores:
+                    st.error("Por favor, selecione pelo menos um Auditor.")
+                    return
+                
                 try:
                     nova_auditoria = {
                         "Data": str(Data),
-                        "Auditores": Auditores,
+                        "Auditores": ", ".join(Auditores) if Auditores else "",
                         "Unidade": Unidade,
-                        "Setor": Setor,
-                        "TipoPlantio_Planejado": TipoPlantio_Planejado,
-                        "TipoPlantio_Executado": TipoPlantio_Executado,
-                        "TipoTerraco_Planejado": TipoTerraco_Planejado,
-                        "TipoTerraco_Executado": TipoTerraco_Executado,
-                        "QuantidadeTerraco_Planejado": QuantidadeTerraco_Planejado,
-                        "QuantidadeTerraco_Executado": QuantidadeTerraco_Executado,
-                        "Levantes_Planejado": Levantes_Planejado,
-                        "Levantes_Executado": Levantes_Executado,
-                        "LevantesDesmanche_Planejado": LevantesDesmanche_Planejado,
-                        "LevantesDesmanche_Executado": LevantesDesmanche_Executado,
-                        "Bigodes_Planejado": Bigodes_Planejado,
-                        "Bigodes_Executado": Bigodes_Executado,
-                        "BigodesDesmanche_Planejado": BigodesDesmanche_Planejado,
-                        "BigodesDesmanche_Executado": BigodesDesmanche_Executado,
-                        "Carreadores_Planejado": Carreadores_Planejado,
-                        "Carreadores_Executado": Carreadores_Executado,
-                        "Patios_Projetado": Patios_Projetado,
-                        "Patios_Executado": Patios_Executado,
-                        "Observacao": Observacao
+                        "Setor": int(Setor),
+                        "Levantes_Planejado": int(Levantes_Planejado),
+                        "Levantes_Executado": int(Levantes_Executado),
+                        "Bigodes_Planejado": int(Bigodes_Planejado),
+                        "Bigodes_Executado": int(Bigodes_Executado),
+                        "TipoPlantio_Planejado": TipoPlantio_Planejado or "",
+                        "TipoPlantio_Executado": TipoPlantio_Executado or "",
+                        "TipoTerraco_Planejado": TipoTerraco_Planejado or "",
+                        "TipoTerraco_Executado": TipoTerraco_Executado or "",
+                        "QuantidadeTerraco_Planejado": QuantidadeTerraco_Planejado or "",
+                        "QuantidadeTerraco_Executado": QuantidadeTerraco_Executado or "",
+                        "LevantesDesmanche_Planejado": int(LevantesDesmanche_Planejado),
+                        "LevantesDesmanche_Executado": int(LevantesDesmanche_Executado),
+                        "BigodesDesmanche_Planejado": int(BigodesDesmanche_Planejado),
+                        "BigodesDesmanche_Executado": int(BigodesDesmanche_Executado),
+                        "Carreadores_Planejado": Carreadores_Planejado or "",
+                        "Carreadores_Executado": Carreadores_Executado or "",
+                        "Patios_Planejado": int(Patios_Planejado),
+                        "Patios_Executado": int(Patios_Executado),
+                        "Observacao": Observacao or ""
                     }
-                    append_to_sheet(nova_auditoria, "Auditoria")
-                    st.success(f"Parabéns! Auditoria do setor {Setor} registrada com sucesso!")
+                    
+                    if append_to_sheet(nova_auditoria, "Auditoria"):
+                        st.success(f"Auditoria do setor {Setor} registrada com sucesso!")
+                        st.cache_data.clear()
+                    else:
+                        st.error("Erro ao registrar a auditoria. Por favor, tente novamente.")
+                        
                 except Exception as e:
-                    st.error(f"Erro ao registrar a auditoria do setor {Setor}: {e}")
+                    st.error(f"Erro ao registrar a auditoria do setor {Setor}: {str(e)}")
 
 ########################################## ATIVIDADES ##########################################
 
@@ -803,99 +931,57 @@ def tarefas_semanais():
     # Converter a coluna 'Setor' para inteiro, se possível
     df_tarefas["Setor"] = pd.to_numeric(df_tarefas["Setor"], errors="coerce").astype("Int64")
 
-    # Criar dropdown com setores ordenados
-    filtro_dropdown = st.selectbox(
-        "🔍 Selecione um setor",
-        options=[""] + sorted(df_tarefas["Setor"].dropna().unique().tolist()),  # Remover NaN antes de ordenar
-        index=0
-    )
+    # Criar duas colunas para os filtros
+    col_filtro1, col_filtro2 = st.columns(2)
 
-    # Filtrar os projetos
-    if filtro_dropdown:
-        df_tarefas = df_tarefas[df_tarefas["Setor"] == filtro_dropdown]
-    else:
-        df_tarefas = df_tarefas
+    with col_filtro1:
+        # Filtro de Setor
+        filtro_setor = st.selectbox(
+            "🔍 Filtrar por Setor",
+            options=[""] + sorted(df_tarefas["Setor"].dropna().unique().tolist()),
+            index=0
+        )
+
+    with col_filtro2:
+        # Filtro de Colaborador
+        filtro_colaborador = st.selectbox(
+            "👤 Filtrar por Colaborador",
+            options=[""] + sorted(df_tarefas["Colaborador"].dropna().astype(str).unique().tolist()),
+            index=0
+        )
+
+    # Aplicar os filtros sequencialmente
+    if filtro_setor:
+        df_tarefas = df_tarefas[df_tarefas["Setor"] == filtro_setor]
+        
+    if filtro_colaborador:
+        df_tarefas = df_tarefas[df_tarefas["Colaborador"] == filtro_colaborador]
 
     # Divide a tela em 3 colunas
     col1, col2, col3 = st.columns(3)
 
-    for i, row in df_tarefas.iterrows():
-        # Criando um card HTML clicável com efeito hover
-        card = f"""
-        <div onclick="selectProject({i})" style="
-            background-color: #ffffff;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            text-align: center;
-            width: 220px;
-            height: 160px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        "
-        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='4px 4px 15px rgba(0,0,0,0.2)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='2px 2px 10px rgba(0,0,0,0.1)';">
-            <strong>Setor {row['Setor']}</strong><br>
-            👤 {row['Colaborador']}<br>
-            🗂️ {row['Tipo']}<br>
-            ⏳ {row['Status']}
-        </div>
-        """
+        # Track if any card is clicked
+    clicked_card = None
 
-        # Distribuir os cards nas colunas
-        if i % 3 == 0:
-            with col1:
-                if st.button(f"Setor {row['Setor']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
-        elif i % 3 == 1:
-            with col2:
-                if st.button(f"Setor {row['Setor']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
-        else:
-            with col3:
-                if st.button(f"Setor {row['Setor']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
+    for i, row in df_tarefas.iterrows():
+        # Determine which column to use
+        current_col = col1 if i % 3 == 0 else (col2 if i % 3 == 1 else col3)
+        
+        with current_col:
+            # Create a single button for the entire card
+            if st.button(
+                f"Setor {row['Setor']} | {row['Colaborador']} | {row['Tipo']}",
+                key=f"card_{i}",
+                use_container_width=True,
+            ):
+                st.session_state["projeto_selecionado"] = row.to_dict()
+                st.rerun()
 
 # Verificar se um projeto foi selecionado
 if "projeto_selecionado" in st.session_state:
     tarefa = st.session_state["projeto_selecionado"]
 
-    # Criar as abas para exibir detalhes ou editar
-    tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"), key="aba_selecionada")
-
-    if tabs == "Detalhes":
-        # Exibir detalhes do projeto selecionado (mesmo código anterior)
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #f8f9fa;
-                padding: 20px;
-                border-radius: 10px;
-                border: 1px solid #ddd;
-                text-align: left;
-                margin-top: 20px;">
-                <h3 style="text-align: center;">📄 Detalhes da Atividade</h3>
-                <strong>Data:</strong> {tarefa['Data']}<br>
-                <strong>Setor:</strong> {tarefa['Setor']}<br>
-                <strong>Colaborador:</strong> {tarefa['Colaborador']}<br>
-                <strong>Tipo:</strong> {tarefa['Tipo']}<br>
-                <strong>Status:</strong> {tarefa['Status']}
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
-    # Edição de tarefas
-    if tabs == "Editar":
-        with st.form(key="edit_form"):
+    with st.form(key="edt_form"):
             Data = st.date_input("Data", value=datetime.today().date())
             Setor = st.number_input("Setor", value=tarefa["Setor"])
             Colaborador = st.selectbox("Colaborador", options=["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
@@ -909,26 +995,29 @@ if "projeto_selecionado" in st.session_state:
             with col1:
                 if st.form_submit_button("Salvar Alterações"):
                     try:
-                        nova_tarefa = {
-                            "Data": str(Data),
-                            "Setor": Setor,
-                            "Colaborador": Colaborador,
-                            "Tipo": Tipo,
-                            "Status": Status
-                        }
-                        append_to_sheet(nova_tarefa, "Tarefas")
-                        st.success("Atividade atualizada com sucesso!")
-                        st.session_state.pop("projeto_selecionado", None)
-                        st.rerun()
+                        df = carregar_tarefas()
+                        mask = (df['Data'] == tarefa['Data']) & (df['Setor'] == tarefa['Setor']) & (df['Colaborador'] == tarefa['Colaborador']) & (df['Tipo'] == tarefa['Tipo'])
+                        if mask.any():
+                            df.loc[mask, ['Data', 'Setor', 'Colaborador', 'Tipo', 'Status']] = [str(Data), Setor, Colaborador, Tipo, Status]
+                            update_sheet(df, "Tarefas")
+                            st.success("Atividade atualizada com sucesso!")
+                            st.session_state.pop("projeto_selecionado", None)
+                        else:
+                            st.error("Não foi possível encontrar a atividade para atualizar.")
                     except Exception as e:
                         st.error(f"Erro ao atualizar: {str(e)}")
                 
                 if st.form_submit_button("🗑️ Excluir Tarefa"):
                     try:
-                        # db.collection("tarefas").document(tarefa['id']).delete()
-                        st.success("Tarefa excluída com sucesso!")
-                        st.session_state.pop("projeto_selecionado", None)
-                        st.rerun()
+                        df = carregar_tarefas()
+                        mask = (df['Data'] == tarefa['Data']) & (df['Setor'] == tarefa['Setor']) & (df['Colaborador'] == tarefa['Colaborador']) & (df['Tipo'] == tarefa['Tipo'])
+                        if mask.any():
+                            df = df[~mask]
+                            update_sheet(df, "Tarefas")
+                            st.success("Tarefa excluída com sucesso!")
+                            st.session_state.pop("projeto_selecionado", None)
+                        else:
+                            st.error("Não foi possível encontrar a tarefa para excluir.")
                     except Exception as e:
                         st.error(f"Erro ao excluir: {str(e)}")
 
@@ -1090,20 +1179,40 @@ def acompanhamento_reforma_passagem():
 
 # Função para calcular a aderência
 def calcular_aderencia(planejado, executado):
-    try:
-        planejado = float(planejado)
-        executado = float(executado)
-
-        if planejado == 0 and executado == 0:
+    # Se os valores são strings (não numéricos)
+    if isinstance(planejado, str) or isinstance(executado, str):
+        # Remover espaços e converter para minúsculas para comparação
+        planejado_str = str(planejado).strip().lower()
+        executado_str = str(executado).strip().lower()
+        
+        # Se ambos estão vazios, considerar 100% de aderência
+        if not planejado_str and not executado_str:
             return 100
-        if planejado == 0 or executado == 0:
+        # Se um está vazio e outro não, considerar 0% de aderência
+        if not planejado_str or not executado_str:
+            return 0
+        # Se são iguais, 100% de aderência
+        if planejado_str == executado_str:
+            return 100
+        # Se são diferentes, 0% de aderência
+        return 0
+    
+    # Para valores numéricos
+    try:
+        planejado_num = float(planejado)
+        executado_num = float(executado)
+
+        if planejado_num == 0 and executado_num == 0:
+            return 100
+        if planejado_num == 0 or executado_num == 0:
             return 0
 
-        menor = min(planejado, executado)
-        maior = max(planejado, executado)
+        menor = min(planejado_num, executado_num)
+        maior = max(planejado_num, executado_num)
         return (menor / maior) * 100
     
-    except ValueError:
+    except (ValueError, TypeError):
+        # Se houver erro na conversão, tratar como strings
         return 100 if str(planejado).strip().lower() == str(executado).strip().lower() else 0
 
 # Página de Auditoria
@@ -1182,15 +1291,9 @@ def auditoria():
 
     st.divider()
 
-    # Exibir tabela formatada
-    st.write("### Planejado x Executado")
-    st.dataframe(df_tabela)
-
-    st.divider()
-
     # Tabela de auditoria
-    st.write("### Lista de Auditorias")
-    df_auditoria_display = df_auditoria[["Data", "Auditores", "Unidade", "Setor", "TipoPlantio_Planejado", "TipoPlantio_Executado", "TipoTerraco_Planejado", "TipoTerraco_Executado"]]
+    st.write("### Detalhes das Auditorias")
+    df_auditoria_display = df_auditoria
     df_auditoria_display["Data"] = pd.to_datetime(df_auditoria_display["Data"]).dt.strftime("%d/%m/%Y")
     
     # Criar um editor de dados com funcionalidade de exclusão de linhas
@@ -1289,19 +1392,24 @@ def atividades_extras():
         st.plotly_chart(fig_setor, use_container_width=True)
     
     # Tabela
-    # Convertendo a coluna "Data" para o formato de exibição
-    df_extras["Data"] = pd.to_datetime(df_extras["Data"]).dt.strftime("%d/%m/%Y")
     st.write("### Detalhes das Atividades")
-    atividades_realizadas = df_extras[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
-    
-    # Criar um editor de dados com funcionalidade de exclusão de linhas
+
+    # Ordenar e preparar dataframe
+    df_extras_ordenado = df_extras.sort_values(by="Data", ascending=False).reset_index(drop=True)
+    atividades_realizadas = df_extras_ordenado[["Data", "Colaborador", "Atividade", "Solicitante", "SetorSolicitante", "Horas"]]
+
+    # Criar um editor de dados
     df_editado = st.data_editor(
         atividades_realizadas,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            "Data": st.column_config.DateColumn(
+                "Data",
+                format="DD/MM/YYYY",
+                help="Selecione a data da atividade"
+            ),
             "Colaborador": st.column_config.SelectboxColumn(
                 "Colaborador",
                 options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"]
@@ -1311,7 +1419,15 @@ def atividades_extras():
                 options=["Impressão de Mapa", "Voo com drone", "Mapa", "Tematização de mapa", 
                         "Processamento", "Projeto", "Outro"]
             ),
-            "Horas": st.column_config.TimeColumn("Horas", format="HH:mm:ss"),
+            "SetorSolicitante": st.column_config.TextColumn(  # Alterado para TextColumn
+                "Setor Solicitante",
+                help="Digite o número do setor ou outra identificação"
+            ),
+            "Horas": st.column_config.TextColumn(  # Alterado para TextColumn
+                "Horas",
+                help="Digite o tempo gasto (formato livre, ex: 1.5 ou 1:30)",
+                default="0"
+            ),
             "DELETE": st.column_config.CheckboxColumn(
                 "Excluir",
                 help="Selecione para excluir a linha",
@@ -1328,8 +1444,8 @@ def atividades_extras():
                 df_editado = df_editado[~df_editado["DELETE"]]
                 df_editado = df_editado.drop(columns=["DELETE"])
             
-            # Converter datas para o formato correto
-            df_editado["Data"] = pd.to_datetime(df_editado["Data"], format="%d/%m/%Y")
+            # Converter formatos para compatibilidade
+            df_editado["Data"] = pd.to_datetime(df_editado["Data"], errors='coerce')
             
             # Atualizar a planilha
             if update_sheet(df_editado, "AtividadesExtras"):
