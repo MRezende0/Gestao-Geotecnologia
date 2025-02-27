@@ -632,20 +632,54 @@ def dashboard():
 def registrar_atividades():
     st.title("📝 Registrar")
 
+    # Configuração de cores para cada tipo de atividade
+    tipo_cores = {
+        "Projeto de Sistematização": "🔴",  # Vermelho
+        "Mapa de Sistematização": "🟠",     # Laranja
+        "LOC": "🟡",                        # Amarelo
+        "Projeto de Transbordo": "🟢",      # Verde
+        "Projeto de Colheita": "🔵",        # Azul
+        "Projeto de Sulcação": "🟣",        # Roxo
+        "Projeto de Fertirrigação": "🟤",   # Marrom
+        "Mapa de Pré-Plantio": "⚫",        # Preto
+        "Mapa de Pós-Plantio": "⚪",        # Branco
+        "Mapa de Pós-Aplicação": "🟪",      # Roxo Claro
+        "Mapa de Cadastro": "🟫",           # Marrom Claro
+        "Auditoria": "🟦",                  # Azul Claro
+        "Outro": "🟩"                       # Verde Claro
+    }
+
+    # Função para formatar com emojis
+    def formatar_tipo(tipo):
+        if not tipo:
+            return ""
+        return f"{tipo_cores.get(tipo, '')} {tipo}"
+
     # Seleção do tipo de atividade
     tipo_atividade = st.radio(
         "Selecione o tipo de registro:",
         ("Atividade Semanal", "Atividade Extra", "Reforma e Passagem", "Pós-Aplicação", "Auditoria")
     )
 
-    # Formulário para Atividade Semanal
     if tipo_atividade == "Atividade Semanal":
         with st.form("form_atividade_semanal"):
             st.subheader("Nova Atividade Semanal")
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
-            Tipo = st.selectbox("Tipo", ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"])
+            
+            # Selectbox com emojis
+            tipo_options = ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo",
+                          "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio",
+                          "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"]
+            
+            Tipo = st.selectbox("Tipo", options=tipo_options, format_func=formatar_tipo)
+            
+            # Mostrar preview colorido
+            if Tipo:
+                emoji = tipo_cores.get(Tipo, "")
+                st.markdown(f"**Preview:** {emoji} `{Tipo}`")
+            
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
