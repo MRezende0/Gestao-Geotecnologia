@@ -272,6 +272,31 @@ def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
             
     return retry_with_backoff(_update, initial_delay=2)
 
+def update_worksheet(df_editado, worksheet_name):
+    """Função genérica para atualizar worksheet"""
+    try:
+        worksheet = get_worksheet(worksheet_name)
+        if worksheet is not None:
+            # Identificar as linhas alteradas
+            df_original = pd.DataFrame(worksheet.get_all_records())
+            df_alterado = df_editado.copy()
+            
+            # Remover colunas de controle antes de salvar
+            if 'DELETE' in df_alterado.columns:
+                df_alterado = df_alterado.drop(columns=['DELETE'])
+            
+            # Limpar a planilha e reescrever os dados
+            worksheet.clear()
+            headers = df_alterado.columns.tolist()
+            worksheet.append_row(headers)
+            worksheet.append_rows(df_alterado.values.tolist())
+            
+            st.cache_data.clear()
+            st.success("Dados atualizados com sucesso!")
+            st.rerun()
+    except Exception as e:
+        st.error(f"Erro ao atualizar planilha: {str(e)}")
+
 ########################################## DADOS ##########################################
 
 # Configuração do Google Sheets
@@ -732,7 +757,7 @@ def registrar_atividades():
                     df_editado = df_editado.drop(columns=["DELETE"])
                 
                 # Atualizar a planilha
-                if update_sheet(df_editado, opcao):
+                if update_worksheet(df_editado, opcao):
                     st.success(f"Dados de {opcao} atualizados com sucesso!")
                     st.rerun()
                     
@@ -1335,40 +1360,19 @@ def auditoria():
                 df_editado = df_editado[~df_editado["DELETE"]]
                 df_editado = df_editado.drop(columns=["DELETE"])
 
-            # Identificar as linhas alteradas
-            df_original = df_auditoria_display
-            df_alterado = df_editado
-
-            # Comparar os DataFrames para encontrar as linhas alteradas
-            linhas_alteradas = df_alterado[~df_alterado.apply(tuple, 1).isin(df_original.apply(tuple, 1))]
-
-            # Atualizar apenas as linhas alteradas no Google Sheets
-            if not linhas_alteradas.empty:
-                worksheet = get_worksheet("Auditoria")
-                if worksheet is not None:
-                    # Obter todas as linhas da planilha
-                    all_values = worksheet.get_all_values()
-                    headers = all_values[0]
-                    data = all_values[1:]
-
-                    # Converter para DataFrame
-                    df_sheet = pd.DataFrame(data, columns=headers)
-
-                    # Atualizar as linhas alteradas no DataFrame da planilha
-                    for _, row in linhas_alteradas.iterrows():
-                        mask = (df_sheet["Data"] == row["Data"]) & (df_sheet["Setor"] == row["Setor"])
-                        df_sheet.loc[mask] = row.values
-
-                    # Limpar a planilha e reescrever os dados atualizados
-                    worksheet.clear()
-                    worksheet.append_row(headers)
-                    worksheet.append_rows(df_sheet.values.tolist())
-
-                    # Limpar o cache para forçar recarregamento dos dados
-                    st.cache_data.clear()
-                    
-                    st.success("Dados atualizados com sucesso!")
-                    st.rerun()
+            # Atualizar a planilha
+            worksheet = get_worksheet("Auditoria")
+            if worksheet is not None:
+                # Limpar e reescrever todos os dados
+                worksheet.clear()
+                headers = df_editado.columns.tolist()
+                worksheet.append_row(headers)
+                worksheet.append_rows(df_editado.values.tolist())
+                
+                # Limpar o cache e mostrar mensagem de sucesso
+                st.cache_data.clear()
+                st.success("Dados atualizados com sucesso!")
+                st.rerun()
         except Exception as e:
             st.error(f"Erro ao salvar alterações: {str(e)}")
 
