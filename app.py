@@ -1364,8 +1364,8 @@ def auditoria():
             for col in df_editado.columns:
                 if 'data' in col.lower():
                     df_editado[col] = pd.to_datetime(df_editado[col], errors='coerce').dt.strftime('%Y-%m-%d')
-                    # Adiciona apenas um apóstrofo no início da string
-                    df_editado[col] = "'" + df_editado[col]
+                    # # Adiciona apenas um apóstrofo no início da string
+                    # df_editado[col] = "'" + df_editado[col]
             
             # Atualizar a planilha
             worksheet = get_worksheet("Auditoria")
