@@ -1,10 +1,17 @@
-# Standard library imports
 import os
 import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# Standard library imports
 import glob
 from datetime import datetime, timedelta
 import time
 from random import uniform
+import warnings
+import httplib2
+import requests
+import certifi
 
 # Third-party imports
 import streamlit as st
@@ -15,8 +22,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2 import service_account
 import streamlit.components.v1 as components
 
-# Corrigir erro de certificado SSL em alguns ambientes locais
-ssl._create_default_https_context = ssl._create_unverified_context
+pd.options.mode.chained_assignment = None  # Desabilita o aviso
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -80,22 +86,24 @@ SHEET_GIDS = {
 
 @st.cache_resource
 def get_google_sheets_client():
-    """
-    Initialize and return Google Sheets client with proper error handling.
-    
-    Returns:
-        gspread.Client or None: Authenticated Google Sheets client or None if error occurs
-    """
     try:
         scope = [
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive'
         ]
-
+        
         credentials_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
         
-        return gspread.authorize(creds)
+        # Criar cliente diretamente com as credenciais
+        client = gspread.authorize(creds)
+        
+        # Configurar a sessão do cliente para ignorar verificação SSL
+        if hasattr(client, 'session'):
+            client.session.verify = False
+        
+        return client
+
     except Exception as e:
         st.error(f"Erro ao conectar com Google Sheets: {str(e)}")
         return None
@@ -230,6 +238,7 @@ def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
         try:
             # Criar uma cópia do DataFrame para não modificar o original
             df_copy = df.copy()
+            df_copy['Data'] = pd.to_datetime(df_copy['Data'], errors='coerce')
             
             # Converter todas as colunas de data para string no formato YYYY-MM-DD
             date_columns = df_copy.select_dtypes(include=['datetime64[ns]']).columns
@@ -357,7 +366,12 @@ if not df_base.empty and "Setor" in df_base.columns:
     df_base["Setor"] = df_base["Setor"].astype(int)
     # Mesclar dados auxiliares com tarefas, se necessário
     if not df_tarefas.empty:
-        df_tarefas = df_tarefas.merge(df_base, on="Setor", how="left")
+        df_tarefas = pd.merge(
+            df_tarefas.copy(),
+            df_base.copy(),
+            on="Setor",
+            how="left"
+        )
         df_tarefas['Area'] = df_tarefas['Area'].fillna(0).astype(int)
         df_tarefas['Unidade'] = df_tarefas['Unidade'].fillna('Desconhecida')
 
@@ -408,7 +422,7 @@ def dashboard():
     # Gráfico: Atividades por Colaborador
     with col1:
         st.subheader("Atividades por Colaborador")
-        df_contagem_responsavel = df_tarefas.groupby("Colaborador")["Tipo"].count().reset_index()
+        df_contagem_responsavel = df_tarefas.groupby(["Colaborador"])["Tipo"].count().reset_index()
         df_contagem_responsavel.columns = ["Colaborador", "Quantidade de Projetos"]
         df_contagem_responsavel = df_contagem_responsavel.sort_values(by="Quantidade de Projetos", ascending=False)
         fig_responsavel = px.bar(
@@ -602,6 +616,7 @@ def registrar_atividades():
     # Formulário para Atividade Semanal
     if tipo_atividade == "Atividade Semanal":
         with st.form("form_atividade_semanal"):
+            st.subheader("Nova Atividade Semanal")
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
@@ -626,7 +641,7 @@ def registrar_atividades():
     # Formulário para Atividade Extra
     elif tipo_atividade == "Atividade Extra":
         with st.form("form_atividade_extra"):
-            st.subheader("Atividade Extra")
+            st.subheader("Nova Atividade Extra")
             Data = st.date_input("Data")
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
             Solicitante = st.text_input("Nome do Solicitante")
@@ -725,7 +740,7 @@ def registrar_atividades():
                 st.error(f"Erro ao salvar alterações: {str(e)}")
 
     elif tipo_atividade == "Pós-Aplicação":
-        st.header("Upload de Arquivo - Pós-Aplicação")
+        st.subheader("Upload de Arquivo - Pós-Aplicação")
         arquivo = st.file_uploader("Carregue um arquivo Excel", type=["xls", "xlsx"])
 
         if arquivo:
@@ -929,7 +944,7 @@ def tarefas_semanais():
     df_tarefas = filtros_atividades(df_tarefas)
 
     # Converter a coluna 'Setor' para inteiro, se possível
-    df_tarefas["Setor"] = pd.to_numeric(df_tarefas["Setor"], errors="coerce").astype("Int64")
+    df_tarefas.loc[:, "Setor"] = pd.to_numeric(df_tarefas["Setor"], errors="coerce").astype("Int64")
 
     # Criar duas colunas para os filtros
     col_filtro1, col_filtro2 = st.columns(2)
@@ -982,6 +997,7 @@ if "projeto_selecionado" in st.session_state:
     tarefa = st.session_state["projeto_selecionado"]
 
     with st.form(key="edt_form"):
+            st.subheader("Editar Tarefa")
             Data = st.date_input("Data", value=datetime.today().date())
             Setor = st.number_input("Setor", value=tarefa["Setor"])
             Colaborador = st.selectbox("Colaborador", options=["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
@@ -1461,7 +1477,7 @@ def atividades_extras():
 def filtros_dashboard(df):
     df = df.copy()  # Trabalhar com uma cópia para não afetar o DataFrame original
     if not df.empty:
-        df['Data'] = pd.to_datetime(df['Data'])
+        df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
 
     st.sidebar.title("Filtros")
 
@@ -1537,14 +1553,19 @@ def filtros_atividades(df_tarefas):
     # Converter coluna Data para datetime
     df_tarefas['Data'] = pd.to_datetime(df_tarefas['Data'], errors='coerce')
     
-    # Verificar se há datas válidas
-    if not df_tarefas['Data'].empty and df_tarefas['Data'].notnull().any():
-        min_date = df_tarefas['Data'].min().to_pydatetime()
-        max_date = df_tarefas['Data'].max().to_pydatetime()
-    else:
-        # Datas padrão se não houver dados
-        min_date = datetime.today() - timedelta(days=30)
-        max_date = datetime.today()
+    # Verificar se há dados suficientes
+    if df_tarefas.empty or df_tarefas['Data'].nunique() < 2:
+        st.warning("Não há dados suficientes para exibir o filtro de datas.")
+        return df_tarefas
+    
+    # Definir min_date e max_date
+    min_date = df_tarefas['Data'].min().to_pydatetime()
+    max_date = df_tarefas['Data'].max().to_pydatetime()
+    
+    # Se as datas forem iguais, ajustar o intervalo
+    if min_date == max_date:
+        min_date = min_date - timedelta(days=1)  # Subtrai 1 dia do min_date
+        max_date = max_date + timedelta(days=1)  # Adiciona 1 dia ao max_date
     
     # Criar slider de datas
     data_inicio, data_fim = st.sidebar.slider(
