@@ -1352,36 +1352,36 @@ def auditoria():
         }
     )
 
-# Botão para salvar alterações
-if st.button("Salvar Alterações"):
-    try:
-        # Remover linhas marcadas para exclusão
-        if "DELETE" in df_editado.columns:
-            df_editado = df_editado[~df_editado["DELETE"]]
-            df_editado = df_editado.drop(columns=["DELETE"])
-        
-        # Converter colunas de data para o formato 'yyyy-mm-dd
-        for col in df_editado.columns:
-            if 'data' in col.lower():
-                df_editado[col] = pd.to_datetime(df_editado[col], errors='coerce').dt.strftime('%Y-%m-%d')
-                # Adiciona apenas um apóstrofo no início da string
-                df_editado[col] = "'" + df_editado[col]
-        
-        # Atualizar a planilha
-        worksheet = get_worksheet("Auditoria")
-        if worksheet is not None:
-            # Limpar e reescrever todos os dados
-            worksheet.clear()
-            headers = df_editado.columns.tolist()
-            worksheet.append_row(headers)
-            worksheet.append_rows(df_editado.values.tolist())
+    # Botão para salvar alterações
+    if st.button("Salvar Alterações"):
+        try:
+            # Remover linhas marcadas para exclusão
+            if "DELETE" in df_editado.columns:
+                df_editado = df_editado[~df_editado["DELETE"]]
+                df_editado = df_editado.drop(columns=["DELETE"])
             
-            # Limpar o cache e mostrar mensagem de sucesso
-            st.cache_data.clear()
-            st.success("Dados atualizados com sucesso!")
-            st.rerun()
-    except Exception as e:
-        st.error(f"Erro ao salvar alterações: {str(e)}")
+            # Converter colunas de data para o formato 'yyyy-mm-dd
+            for col in df_editado.columns:
+                if 'data' in col.lower():
+                    df_editado[col] = pd.to_datetime(df_editado[col], errors='coerce').dt.strftime('%Y-%m-%d')
+                    # Adiciona apenas um apóstrofo no início da string
+                    df_editado[col] = "'" + df_editado[col]
+            
+            # Atualizar a planilha
+            worksheet = get_worksheet("Auditoria")
+            if worksheet is not None:
+                # Limpar e reescrever todos os dados
+                worksheet.clear()
+                headers = df_editado.columns.tolist()
+                worksheet.append_row(headers)
+                worksheet.append_rows(df_editado.values.tolist())
+                
+                # Limpar o cache e mostrar mensagem de sucesso
+                st.cache_data.clear()
+                st.success("Dados atualizados com sucesso!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao salvar alterações: {str(e)}")
 
 ########################################## EXTRAS ##########################################
 
