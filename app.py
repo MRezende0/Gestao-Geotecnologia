@@ -697,23 +697,23 @@ def registrar_atividades():
                 ),
                 "Projeto": st.column_config.SelectboxColumn(
                     "Projeto",
-                    options=["OK", ""]
+                    options=["OK", "EM ANDAMENTO", "NAO", ""]
                 ),
                 "Aprovado": st.column_config.SelectboxColumn(
                     "Aprovado",
-                    options=["OK", ""]
+                    options=["OK", "EM ANDAMENTO", "NAO", ""]
                 ),
                 "Sistematizacao": st.column_config.SelectboxColumn(
                     "Sistematizacao",
-                    options=["OK", ""]
+                    options=["OK", "EM ANDAMENTO", "NAO", ""]
                 ),
                 "Loc": st.column_config.SelectboxColumn(
                     "Loc",
-                    options=["OK", ""]
+                    options=["OK", "EM ANDAMENTO", "NAO", ""]
                 ),
                 "Pre_Plantio": st.column_config.SelectboxColumn(
                     "Pre_Plantio",
-                    options=["OK", ""]
+                    options=["OK", "EM ANDAMENTO", "NAO", ""]
                 ),
                 "DELETE": st.column_config.CheckboxColumn(
                     "Excluir",
@@ -1335,24 +1335,40 @@ def auditoria():
                 df_editado = df_editado[~df_editado["DELETE"]]
                 df_editado = df_editado.drop(columns=["DELETE"])
 
-            # Criar uma nova planilha com os dados atualizados
-            worksheet = get_worksheet("Auditoria")
-            if worksheet is not None:
-                # Limpar a planilha atual
-                worksheet.clear()
-                
-                # Adicionar cabeçalhos
-                headers = df_editado.columns.tolist()
-                worksheet.append_row(headers)
-                
-                # Adicionar dados
-                worksheet.append_rows(df_editado.values.tolist())
-                
-                # Limpar o cache para forçar recarregamento dos dados
-                st.cache_data.clear()
-                
-                st.success("Dados atualizados com sucesso!")
-                st.rerun()
+            # Identificar as linhas alteradas
+            df_original = df_auditoria_display
+            df_alterado = df_editado
+
+            # Comparar os DataFrames para encontrar as linhas alteradas
+            linhas_alteradas = df_alterado[~df_alterado.apply(tuple, 1).isin(df_original.apply(tuple, 1))]
+
+            # Atualizar apenas as linhas alteradas no Google Sheets
+            if not linhas_alteradas.empty:
+                worksheet = get_worksheet("Auditoria")
+                if worksheet is not None:
+                    # Obter todas as linhas da planilha
+                    all_values = worksheet.get_all_values()
+                    headers = all_values[0]
+                    data = all_values[1:]
+
+                    # Converter para DataFrame
+                    df_sheet = pd.DataFrame(data, columns=headers)
+
+                    # Atualizar as linhas alteradas no DataFrame da planilha
+                    for _, row in linhas_alteradas.iterrows():
+                        mask = (df_sheet["Data"] == row["Data"]) & (df_sheet["Setor"] == row["Setor"])
+                        df_sheet.loc[mask] = row.values
+
+                    # Limpar a planilha e reescrever os dados atualizados
+                    worksheet.clear()
+                    worksheet.append_row(headers)
+                    worksheet.append_rows(df_sheet.values.tolist())
+
+                    # Limpar o cache para forçar recarregamento dos dados
+                    st.cache_data.clear()
+                    
+                    st.success("Dados atualizados com sucesso!")
+                    st.rerun()
         except Exception as e:
             st.error(f"Erro ao salvar alterações: {str(e)}")
 
