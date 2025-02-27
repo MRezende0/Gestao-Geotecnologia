@@ -965,6 +965,11 @@ def tarefas_semanais():
     # Carregar os dados de tarefas
     df_tarefas = carregar_tarefas()
 
+    # Verificar se há dados
+    if df_tarefas.empty:
+        st.info("Nenhuma atividade registrada.")
+        return
+
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
 
@@ -1391,6 +1396,11 @@ def atividades_extras():
     
     # Carregar os dados do banco de dados
     df_extras = carregar_atividades_extras()
+
+    # Verificar se há dados
+    if df_extras.empty:
+        st.info("Nenhuma atividade extra registrada.")
+        return
     
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_extras = filtros_extras(df_extras)
@@ -1576,6 +1586,9 @@ def filtros_dashboard(df):
 
 def filtros_atividades(df_tarefas):
     st.sidebar.header("Filtros")
+
+    if df_tarefas.empty:
+        return df_tarefas
     
     # Converter coluna Data para datetime
     df_tarefas['Data'] = pd.to_datetime(df_tarefas['Data'], errors='coerce')
@@ -1615,6 +1628,9 @@ def filtros_atividades(df_tarefas):
 def filtros_extras(df_extras):
 
     st.sidebar.title("Filtros")
+
+    if df_extras.empty:
+        return df_extras
 
     # Garantir que a coluna "Data" está em formato datetime
     df_extras["Data"] = pd.to_datetime(df_extras["Data"], errors='coerce')
