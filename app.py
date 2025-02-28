@@ -1387,7 +1387,11 @@ def auditoria():
                 "Excluir",
                 help="Selecione para excluir a linha",
                 default=False
-            )
+            ),
+            "Setor": st.column_config.NumberColumn(
+                "Setor",
+                format="%d"  # Formato inteiro sem decimais
+            ),
         }
     )
 
