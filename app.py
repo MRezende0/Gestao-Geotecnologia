@@ -1220,7 +1220,7 @@ def acompanhamento_reforma_passagem():
     # Adicionar esta linha para fixar o eixo X até 100%
     fig.update_xaxes(range=[0, 105])
 
-    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%")
+    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition='outside')
 
     fig.update_layout(
         showlegend=False,  
