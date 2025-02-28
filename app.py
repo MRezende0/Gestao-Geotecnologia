@@ -1676,6 +1676,10 @@ def filtros_extras(df_extras):
     # Definindo o intervalo de datas
     data_min = df_extras["Data"].min().date()  # Convertendo para date
     data_max = df_extras["Data"].max().date()  # Convertendo para date
+
+    # Se as datas forem iguais, adiciona um dia a data_max
+    if data_min == data_max:
+        data_max = data_max + pd.Timedelta(days=1)
     
     # Barra deslizante para selecionar o intervalo de datas
     data_inicio, data_fim = st.sidebar.slider(
