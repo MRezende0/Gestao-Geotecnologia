@@ -586,7 +586,7 @@ def dashboard():
         hide_index=True,
         column_config={
             "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-            "Setor": st.column_config.NumberColumn("Setor", min_value=0, step=1),
+            "Setor": st.column_config.NumberColumn("Setor", min_value=0, step=1, format="%d"),
             "Colaborador": st.column_config.SelectboxColumn(
                 "Colaborador",
                 options=["Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"]
