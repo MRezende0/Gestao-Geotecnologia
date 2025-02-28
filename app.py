@@ -1217,12 +1217,16 @@ def acompanhamento_reforma_passagem():
         labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
     )
 
+    # Adicionar esta linha para fixar o eixo X até 100%
+    fig.update_xaxes(range=[0, 105])
+
     fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%")
 
     fig.update_layout(
         showlegend=False,  
         xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
         yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
+        range=[0, 105]
     )
 
     # Exibir o gráfico dinâmico no Streamlit
