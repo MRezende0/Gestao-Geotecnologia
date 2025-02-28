@@ -1225,8 +1225,7 @@ def acompanhamento_reforma_passagem():
     fig.update_layout(
         showlegend=False,  
         xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
-        yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
-        range=[0, 105]
+        yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False)
     )
 
     # Exibir o gráfico dinâmico no Streamlit
