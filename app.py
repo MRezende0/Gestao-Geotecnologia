@@ -593,7 +593,7 @@ def dashboard():
             "Tipo": st.column_config.SelectboxColumn(
                 "Tipo",
                 options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", 
-                        "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"]
+                        "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Mapa de Expansão", "Auditoria", "Outro"]
             ),
             "Status": st.column_config.SelectboxColumn(
                 "Status",
