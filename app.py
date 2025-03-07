@@ -264,9 +264,8 @@ def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
             # Limpar cache para forçar recarregamento dos dados
             st.cache_data.clear()
             return True
+            
         except Exception as e:
-            if "Quota exceeded" in str(e):
-                raise e
             st.error(f"Erro ao atualizar planilha: {str(e)}")
             return False
             
@@ -645,6 +644,7 @@ def registrar_atividades():
         "Mapa de Pós-Plantio": "⚪",        # Branco
         "Mapa de Pós-Aplicação": "🟪",      # Roxo Claro
         "Mapa de Cadastro": "🟫",           # Marrom Claro
+        "Mapa de Expansão": "🟧",           # Laranja
         "Auditoria": "🟦",                  # Azul Claro
         "Outro": "🟩"                       # Verde Claro
     }
@@ -667,19 +667,12 @@ def registrar_atividades():
             Data = st.date_input("Data")
             Setor = st.number_input("Setor", min_value=0, step=1)
             Colaborador = st.selectbox("Colaborador", ["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"])
-            
-            # Selectbox com emojis
+
             tipo_options = ["", "Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo",
                           "Projeto de Colheita", "Projeto de Sulcação", "Projeto de Fertirrigação", "Mapa de Pré-Plantio",
-                          "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Auditoria", "Outro"]
+                          "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Mapa de Expansão", "Auditoria", "Outro"]
             
             Tipo = st.selectbox("Tipo", options=tipo_options, format_func=formatar_tipo)
-            
-            # Mostrar preview colorido
-            if Tipo:
-                emoji = tipo_cores.get(Tipo, "")
-                st.markdown(f"**Preview:** {emoji} `{Tipo}`")
-            
             Status = st.selectbox("Status", ["A fazer", "Em andamento", "A validar", "Concluído"])
             submit = st.form_submit_button("Registrar")
 
