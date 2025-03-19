@@ -222,6 +222,17 @@ def load_data(sheet_name: str) -> pd.DataFrame:
     Returns:
         DataFrame com os dados carregados
     """
+    # Verificar se os dados já estão em cache na sessão
+    cache_key = f"raw_data_{sheet_name}"
+    
+    # Tentar recuperar do cache da sessão primeiro
+    if cache_key in st.session_state and "last_updated" in st.session_state:
+        # Verificar se o cache ainda é válido (menos de 1 hora)
+        time_diff = datetime.now() - st.session_state["last_updated"].get(sheet_name, datetime.min)
+        if time_diff.total_seconds() < 3600:  # 1 hora em segundos
+            return st.session_state[cache_key]
+    
+    # Se não estiver em cache ou o cache estiver expirado, carregar do Google Sheets
     def _load():
         worksheet = get_worksheet(sheet_name)
         if worksheet is None:
@@ -229,8 +240,20 @@ def load_data(sheet_name: str) -> pd.DataFrame:
             
         data = worksheet.get_all_records()
         return pd.DataFrame(data)
-        
+    
     result = retry_with_backoff(_load)
+    
+    # Se carregou com sucesso, atualizar o cache
+    if result is not None and not result.empty:
+        st.session_state[cache_key] = result
+        
+        # Inicializar ou atualizar o dicionário de timestamps
+        if "last_updated" not in st.session_state:
+            st.session_state["last_updated"] = {}
+        
+        # Atualizar o timestamp para esta planilha
+        st.session_state["last_updated"][sheet_name] = datetime.now()
+    
     return result if result is not None else pd.DataFrame()
 
 def update_sheet(df: pd.DataFrame, sheet_name: str) -> bool:
@@ -315,7 +338,59 @@ SHEET_GIDS = {
 PASTA_POS = "dados/pos-aplicacao"
 ARQUIVO_POS_CSV = "dados/pos_aplicacao.csv"
 
-@st.cache_data(ttl=60)
+# Função para carregar dados sob demanda usando o sistema de sessão do Streamlit
+def get_data(data_type):
+    """
+    Carrega dados sob demanda e armazena na sessão para evitar recarregamentos desnecessários.
+    
+    Args:
+        data_type: Tipo de dados a serem carregados (tarefas, extras, auditoria, etc.)
+    
+    Returns:
+        DataFrame com os dados solicitados
+    """
+    # Criar chave para a sessão
+    session_key = f"data_{data_type}"
+    
+    # Verificar se os dados já estão na sessão
+    if session_key not in st.session_state:
+        # Carregar dados conforme o tipo solicitado
+        if data_type == "tarefas":
+            st.session_state[session_key] = carregar_tarefas()
+        elif data_type == "extras":
+            st.session_state[session_key] = carregar_atividades_extras()
+        elif data_type == "auditoria":
+            st.session_state[session_key] = carregar_auditoria()
+        elif data_type == "reforma":
+            st.session_state[session_key] = carregar_reforma()
+        elif data_type == "expansao":
+            st.session_state[session_key] = carregar_expansao()
+        elif data_type == "base":
+            st.session_state[session_key] = carregar_dados_base()
+        elif data_type == "pos":
+            st.session_state[session_key] = carregar_dados_pos()
+    
+    return st.session_state[session_key]
+
+# Função para limpar o cache de dados quando necessário
+def clear_data_cache(data_type=None):
+    """
+    Limpa o cache de dados para forçar o recarregamento.
+    
+    Args:
+        data_type: Tipo específico de dados para limpar ou None para limpar todos
+    """
+    if data_type:
+        session_key = f"data_{data_type}"
+        if session_key in st.session_state:
+            del st.session_state[session_key]
+    else:
+        # Limpar todos os caches de dados
+        keys_to_delete = [k for k in st.session_state.keys() if k.startswith("data_")]
+        for key in keys_to_delete:
+            del st.session_state[key]
+
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_tarefas():
     """Carrega e formata os dados de tarefas."""
     df = load_data("Tarefas")
@@ -327,7 +402,7 @@ def carregar_tarefas():
             df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_atividades_extras():
     """Carrega os dados de atividades extras."""
     df = load_data("AtividadesExtras")
@@ -336,7 +411,7 @@ def carregar_atividades_extras():
         df = df.dropna(subset=["Data"])
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_auditoria():
     """Carrega os dados de auditoria."""
     df = load_data("Auditoria")
@@ -345,7 +420,7 @@ def carregar_auditoria():
         df = df.dropna(subset=["Data"])
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_dados_base():
     """Carrega e formata os dados base."""
     df = load_data("Base")
@@ -353,7 +428,7 @@ def carregar_dados_base():
         df["Setor"] = pd.to_numeric(df["Setor"], errors='coerce').fillna(0).astype(int)
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_reforma() -> pd.DataFrame:
     """Carrega os dados de reforma."""
     df = load_data("Reforma")
@@ -373,7 +448,7 @@ def carregar_reforma() -> pd.DataFrame:
     
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_expansao() -> pd.DataFrame:
     """Carrega os dados de expansão."""
     df = load_data("Expansão")
@@ -393,7 +468,7 @@ def carregar_expansao() -> pd.DataFrame:
     
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)  # Aumentado para 1 hora
 def carregar_dados_pos() -> pd.DataFrame:
     """Carrega os dados de pós-aplicação."""
     df = load_data("Pós")
@@ -405,13 +480,13 @@ def carregar_dados_pos() -> pd.DataFrame:
     return df
 
 # Carregamento inicial dos dados
-df_tarefas = carregar_tarefas()
-df_extras = carregar_atividades_extras()
-df_auditoria = carregar_auditoria()
-df_reforma = carregar_reforma()
-df_expansao = carregar_expansao()
-df_base = carregar_dados_base()
-df_pos = carregar_dados_pos()
+df_tarefas = get_data("tarefas")
+df_extras = get_data("extras")
+df_auditoria = get_data("auditoria")
+df_reforma = get_data("reforma")
+df_expansao = get_data("expansao")
+df_base = get_data("base")
+df_pos = get_data("pos")
 
 # Converter tipos das colunas dos dados auxiliares, se necessário
 if not df_tarefas.empty and "Setor" in df_tarefas.columns:
@@ -436,7 +511,7 @@ def dashboard():
     st.title("📊 Dashboard")
 
     with st.spinner('Carregando dados...'):
-        df_tarefas = carregar_tarefas()
+        df_tarefas = get_data("tarefas")
     
     # Se o DataFrame estiver vazio, exibe mensagem e retorna
     if df_tarefas.empty:
@@ -444,7 +519,7 @@ def dashboard():
         return
 
     # Mesclar com df_base (dados auxiliares vindos de CSV) para obter 'Area' e 'Unidade'
-    df_base = carregar_dados_base()
+    df_base = get_data("base")
     # Certifique-se de que a coluna 'Setor' está com o mesmo tipo em ambos os DataFrames
     df_tarefas["Setor"] = df_tarefas["Setor"].astype(int)
     df_base["Setor"] = df_base["Setor"].astype(int)
@@ -567,6 +642,7 @@ def dashboard():
     )
     
     # Converter coluna DATA de df_pos para datetime e criar coluna MÊS
+    df_pos = get_data("pos")
     df_pos["DATA"] = pd.to_datetime(df_pos["DATA"], errors="coerce")
     df_pos["MÊS"] = df_pos["DATA"].dt.strftime("%B").str.capitalize()
     
@@ -754,9 +830,9 @@ def registrar_atividades():
         
         # Carregar os dados apropriados
         if opcao == "Reforma":
-            df_editavel = carregar_reforma()
+            df_editavel = get_data("reforma")
         else:
-            df_editavel = carregar_expansao()
+            df_editavel = get_data("expansao")
             
         # Criar um editor de dados
         df_editado = st.data_editor(
@@ -851,7 +927,7 @@ def registrar_atividades():
                 # Salvar dados
                 if st.button("Salvar"):
                     # Verificar duplicatas
-                    df_existente = carregar_dados_pos()
+                    df_existente = get_data("pos")
                     novos_registros = []
                     duplicatas = 0
                     
@@ -1021,7 +1097,7 @@ def tarefas_semanais():
     st.title("📂 Atividades")
 
     # Carregar os dados de tarefas
-    df_tarefas = carregar_tarefas()
+    df_tarefas = get_data("tarefas")
 
     # Verificar se há dados
     if df_tarefas.empty:
@@ -1099,7 +1175,7 @@ if "projeto_selecionado" in st.session_state:
             with col1:
                 if st.form_submit_button("Salvar Alterações"):
                     try:
-                        df = carregar_tarefas()
+                        df = get_data("tarefas")
                         mask = (df['Data'] == tarefa['Data']) & (df['Setor'] == tarefa['Setor']) & (df['Colaborador'] == tarefa['Colaborador']) & (df['Tipo'] == tarefa['Tipo'])
                         if mask.any():
                             df.loc[mask, ['Data', 'Setor', 'Colaborador', 'Tipo', 'Status']] = [str(Data), Setor, Colaborador, Tipo, Status]
@@ -1113,7 +1189,7 @@ if "projeto_selecionado" in st.session_state:
                 
                 if st.form_submit_button("🗑️ Excluir Tarefa"):
                     try:
-                        df = carregar_tarefas()
+                        df = get_data("tarefas")
                         mask = (df['Data'] == tarefa['Data']) & (df['Setor'] == tarefa['Setor']) & (df['Colaborador'] == tarefa['Colaborador']) & (df['Tipo'] == tarefa['Tipo'])
                         if mask.any():
                             df = df[~mask]
@@ -1145,7 +1221,7 @@ def acompanhamento_reforma_expansao():
         st.cache_data.clear()
         
         # Carregar dados de reforma
-        df_reforma = carregar_reforma()
+        df_reforma = get_data("reforma")
         
         # Verificar se o DataFrame está vazio ou se não tem dados válidos
         has_valid_data = not df_reforma.empty and "Area" in df_reforma.columns and df_reforma["Area"].sum() > 0
@@ -1233,7 +1309,7 @@ def acompanhamento_reforma_expansao():
         
         ######################## EXPANSÃO ########################
         # Carregar dados de expansão
-        df_expansao = carregar_expansao()
+        df_expansao = get_data("expansao")
         
         # Verificar se o DataFrame está vazio ou se não tem dados válidos
         has_valid_data = not df_expansao.empty and "Area" in df_expansao.columns and df_expansao["Area"].sum() > 0
@@ -1438,7 +1514,7 @@ def auditoria():
     st.title("🔍 Auditoria")
 
     # Carregar os dados do banco de dados
-    df_auditoria = carregar_auditoria()
+    df_auditoria = get_data("auditoria")
 
     # Criar novas colunas de aderência para o DataFrame filtrado
     colunas_planejado = [col for col in df_auditoria.columns if "_Planejado" in col]
@@ -1571,7 +1647,7 @@ def atividades_extras():
     st.title("📌 Atividades Extras")
     
     # Carregar os dados do banco de dados
-    df_extras = carregar_atividades_extras()
+    df_extras = get_data("extras")
 
     # Verificar se há dados
     if df_extras.empty:
@@ -1889,6 +1965,9 @@ def filtros_auditoria(df_auditoria):
 
 # Página Principal
 def main_app():
+    # Inicializar o estado da sessão se necessário
+    if "page" not in st.session_state:
+        st.session_state["page"] = "Dashboard"
     
     st.sidebar.image("imagens/logo-cocal.png")
     st.sidebar.title("Menu")
@@ -1924,3 +2003,47 @@ if __name__ == "__main__":
     except Exception as e:
         st.error(f"Erro ao executar a aplicação: {e}")
         st.stop()
+
+# Adicionar função para otimizar a renderização de componentes
+def render_once(key, func, *args, **kwargs):
+    """
+    Renderiza um componente apenas uma vez e armazena o resultado na sessão.
+    Isso evita recarregamentos desnecessários durante a interação do usuário.
+    
+    Args:
+        key: Chave única para identificar o componente na sessão
+        func: Função a ser executada para renderizar o componente
+        *args, **kwargs: Argumentos para a função
+        
+    Returns:
+        Resultado da função
+    """
+    # Criar chave para a sessão
+    component_key = f"component_{key}"
+    
+    # Verificar se o componente já foi renderizado nesta sessão
+    if component_key not in st.session_state:
+        # Renderizar o componente
+        result = func(*args, **kwargs)
+        # Armazenar o resultado na sessão
+        st.session_state[component_key] = result
+    
+    return st.session_state[component_key]
+
+# Função para limpar o cache de componentes quando necessário
+def clear_component_cache(component_key=None):
+    """
+    Limpa o cache de componentes para forçar a re-renderização.
+    
+    Args:
+        component_key: Chave específica do componente para limpar ou None para limpar todos
+    """
+    if component_key:
+        full_key = f"component_{component_key}"
+        if full_key in st.session_state:
+            del st.session_state[full_key]
+    else:
+        # Limpar todos os caches de componentes
+        keys_to_delete = [k for k in st.session_state.keys() if k.startswith("component_")]
+        for key in keys_to_delete:
+            del st.session_state[key]
