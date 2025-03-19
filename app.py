@@ -1107,34 +1107,14 @@ if "projeto_selecionado" in st.session_state:
 # Página de Acompanhamento Reforma e Expansão
 def acompanhamento_reforma_expansao():
     
+    # Limpar o cache para forçar o recarregamento dos dados
+    st.cache_data.clear()
+    
     # Carregar dados novamente para garantir que estão atualizados
     df_reforma = carregar_reforma()
     df_expansao = carregar_expansao()
 
     st.title("🌱 Reforma e Expansão")
-
-    # Adicionar logs para debug
-    with st.expander("Informações de Debug"):
-        col_debug1, col_debug2 = st.columns(2)
-        
-        with col_debug1:
-            st.write("#### Dados de Reforma")
-            st.write(f"Número de linhas: {len(df_reforma)}")
-            st.write(f"Colunas: {df_reforma.columns.tolist()}")
-            if not df_reforma.empty:
-                st.write("Valores únicos de Unidade: ", df_reforma["Unidade"].unique())
-                st.write("Valores únicos de Plano: ", df_reforma["Plano"].unique() if "Plano" in df_reforma.columns else "Coluna Plano não encontrada")
-                st.write("Primeiras linhas:")
-                st.dataframe(df_reforma.head(3), use_container_width=True)
-        
-        with col_debug2:
-            st.write("#### Dados de Expansão")
-            st.write(f"Número de linhas: {len(df_expansao)}")
-            st.write(f"Colunas: {df_expansao.columns.tolist()}")
-            if not df_expansao.empty:
-                st.write("Valores únicos de Unidade: ", df_expansao["Unidade"].unique())
-                st.write("Primeiras linhas:")
-                st.dataframe(df_expansao.head(3), use_container_width=True)
     
     # Lista de categorias e colunas correspondentes no DataFrame
     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
@@ -1169,8 +1149,8 @@ def acompanhamento_reforma_expansao():
                 
                 # Verificar se existem dados para esta unidade
                 if not df_unidade.empty:
-                    # Filtrar dados do plano "REFORMA PLANO A"
-                    df_plano = df_unidade[df_unidade["Plano"] == "REFORMA PLANO A"]
+                    # Filtrar dados do plano "Plano A"
+                    df_plano = df_unidade[df_unidade["Plano"] == "Plano A"]
                     
                     # Verificar se existem dados para este plano
                     if not df_plano.empty:
@@ -1186,7 +1166,7 @@ def acompanhamento_reforma_expansao():
                                     filtro = df_plano["Projeto"] == "EM ANDAMENTO"
                                 elif categoria == "Realizado":
                                     # Para "Realizado", considerar todos os dados do plano
-                                    filtro = df_plano["Plano"] == "REFORMA PLANO A"
+                                    filtro = df_plano["Plano"] == "Plano A"
                                 else:
                                     # Para outras categorias, filtrar pela coluna correspondente
                                     filtro = df_plano[coluna] == "OK"
