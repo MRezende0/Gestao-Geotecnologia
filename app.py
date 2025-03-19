@@ -80,7 +80,7 @@ SHEET_GIDS = {
     "Auditoria": "543590152",
     "Base": "503847224",
     "Reforma": "1252125692",
-    "Expansão": "2099988266",
+    "Passagem": "2099988266",
     "Pós": "1874058370"
 }
 
@@ -306,7 +306,7 @@ SHEET_GIDS = {
     "Auditoria": "543590152",
     "Base": "503847224",
     "Reforma": "1252125692",
-    "Expansão": "2099988266",
+    "Passagem": "2099988266",
     "Pós": "1874058370"
 }
 
@@ -358,9 +358,9 @@ def carregar_reforma() -> pd.DataFrame:
     return load_data("Reforma")
 
 @st.cache_data(ttl=60)
-def carregar_expansao() -> pd.DataFrame:
-    """Carrega os dados de expansão."""
-    return load_data("Expansão")
+def carregar_passagem() -> pd.DataFrame:
+    """Carrega os dados de passagem."""
+    return load_data("Passagem")
 
 @st.cache_data(ttl=60)
 def carregar_dados_pos() -> pd.DataFrame:
@@ -378,7 +378,7 @@ df_tarefas = carregar_tarefas()
 df_extras = carregar_atividades_extras()
 df_auditoria = carregar_auditoria()
 df_reforma = carregar_reforma()
-df_expansao = carregar_expansao()
+df_passagem = carregar_passagem()
 df_base = carregar_dados_base()
 df_pos = carregar_dados_pos()
 
@@ -658,7 +658,7 @@ def registrar_atividades():
     # Seleção do tipo de atividade
     tipo_atividade = st.radio(
         "Selecione o tipo de registro:",
-        ("Atividade Semanal", "Atividade Extra", "Reforma e Expansão", "Pós-Aplicação", "Auditoria")
+        ("Atividade Semanal", "Atividade Extra", "Reforma e Passagem", "Pós-Aplicação", "Auditoria")
     )
 
     if tipo_atividade == "Atividade Semanal":
@@ -717,15 +717,15 @@ def registrar_atividades():
                 except Exception as e:
                     st.error(f"Erro ao registrar a Atividade Extra ({Atividade}): {e}")
 
-    # Formulário para Reforma e Expansão
-    elif tipo_atividade == "Reforma e Expansão":
-        opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Expansão"])
+    # Formulário para Reforma e Passagem
+    elif tipo_atividade == "Reforma e Passagem":
+        opcao = st.radio("Selecione a planilha para editar:", ["Reforma", "Passagem"])
         
         # Carregar os dados apropriados
         if opcao == "Reforma":
             df_editavel = carregar_reforma()
         else:
-            df_editavel = carregar_expansao()
+            df_editavel = carregar_passagem()
             
         # Criar um editor de dados
         df_editado = st.data_editor(
@@ -736,7 +736,7 @@ def registrar_atividades():
             column_config={
                 "Unidade": st.column_config.SelectboxColumn(
                     "Unidade",
-                    options=["PPT", "NRD"]
+                    options=["21", "22"]
                 ),
                 "Area": st.column_config.NumberColumn(
                     "Area",
@@ -745,7 +745,7 @@ def registrar_atividades():
                 ),
                 "Plano": st.column_config.SelectboxColumn(
                     "Plano",
-                    options=["REFORMA PLANO A", "REFORMA PLANO B"]
+                    options=["Plano A", "Plano B"]
                 ),
                 "Projeto": st.column_config.SelectboxColumn(
                     "Projeto",
@@ -1094,30 +1094,97 @@ if "projeto_selecionado" in st.session_state:
                     except Exception as e:
                         st.error(f"Erro ao excluir: {str(e)}")
 
-########################################## REFORMA E EXPANSÃO ##########################################
+########################################## REFORMA E PASSAGEM ##########################################
 
-# Página de Acompanhamento Reforma e Expansão
-def acompanhamento_reforma_expansao():
-    st.title("🌱 Reforma e Expansão")
+# Página de Acompanhamento Reforma e Passagem
+def acompanhamento_reforma_passagem():
+
+    st.title("🌱 Reforma e Passagem")
 
     # Lista de categorias e colunas correspondentes no DataFrame
     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
     colunas = ["Projeto", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
 
-    # Processar dados de reforma
-    df_metrica_reforma = processar_dados_reforma(categorias, colunas)
-    
-    # Processar dados de expansão
-    df_metrica_expansao = processar_dados_expansao(categorias, colunas)
+    # Criar um dicionário para armazenar os valores
+    data_reforma = {"Categoria": categorias}
+    data_passagem = {"Categoria": categorias}
+    data = {"Categoria": categorias}
+
+######################## REFORMA ########################
+
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
+        valores_reforma = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_reforma[coluna] == "OK"
+            
+            area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_reforma[nome] = valores_reforma
+
+    # Calcular a média das porcentagens para cada categoria na tabela de Reforma
+    media_grupo_cocal_reforma = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_reforma["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_reforma["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+        
+        # Formatando a média como porcentagem
+        media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
+    data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
+
+    # Criar DataFrame para exibição
+    df_metrica_reforma = pd.DataFrame(data_reforma)
+
+######################## PASSAGEM ########################
+
+    # Resetar o dicionário para a tabela de Passagem
+    data_passagem = {"Categoria": categorias}
+
+    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
+        unidade_area = df_passagem[(df_passagem["Unidade"] == unidade)]["Area"].sum()
+        valores_passagem = []
+        for coluna, categoria in zip(colunas, categorias):
+            if categoria == "Em andamento":
+                filtro = df_passagem["Projeto"] == "EM ANDAMENTO"
+            else:
+                filtro = df_passagem[coluna] == "OK"
+            
+            area_categoria = df_passagem[(df_passagem["Unidade"] == unidade) & filtro]["Area"].sum()
+            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+            valores_passagem.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+        data_passagem[nome] = valores_passagem
+
+    # Calcular a média das porcentagens para cada categoria na tabela de Passagem
+    media_grupo_cocal_passagem = []
+    for i in range(len(categorias)):
+        # Convertendo os valores para números e calculando a média
+        media = (float(data_passagem["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
+                float(data_passagem["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
+        
+        # Formatando a média como porcentagem
+        media_grupo_cocal_passagem.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
+
+    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Passagem
+    data_passagem["Grupo Cocal"] = media_grupo_cocal_passagem
+
+    # Criar DataFrame para exibição
+    df_metrica_passagem = pd.DataFrame(data_passagem)
 
 ####################### GRÁFICO ########################
 
-    # Divide a tela em 2 colunas
+    # Divide a tela em 3 colunas
     col1, col2 = st.columns(2)
 
     with col1:
         # Criando opções de seleção para visualizar os dados
-        opcao_tipo = st.selectbox("Selecione o tipo de acompanhamento:", ["Reforma", "Expansão"])
+        opcao_tipo = st.selectbox("Selecione o tipo de acompanhamento:", ["Reforma", "Passagem"])
 
     with col2:
         opcao_visualizacao = st.selectbox("Selecione a unidade:", ["Grupo Cocal", "Paraguaçu", "Narandiba"])
@@ -1126,7 +1193,7 @@ def acompanhamento_reforma_expansao():
     if opcao_tipo == "Reforma":
         df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
     else:
-        df_selecionado = df_metrica_expansao[["Categoria", opcao_visualizacao]]
+        df_selecionado = df_metrica_passagem[["Categoria", opcao_visualizacao]]
 
     df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
 
@@ -1180,184 +1247,9 @@ def acompanhamento_reforma_expansao():
 
     st.divider()
 
-    # Métricas de Expansão
-    st.write("### Métricas de Expansão")
-    st.dataframe(df_metrica_expansao, use_container_width=True, hide_index=True)
-
-def processar_dados_reforma(categorias, colunas):
-    """
-    Processa os dados de reforma e retorna um DataFrame com as métricas.
-    
-    Args:
-        categorias: Lista de categorias para análise
-        colunas: Lista de colunas correspondentes no DataFrame
-        
-    Returns:
-        DataFrame com as métricas de reforma
-    """
-    try:
-        # Verificar se os dados já estão na sessão para evitar recarregamento
-        if "df_reforma" not in st.session_state or st.session_state.df_reforma is None:
-            st.session_state.df_reforma = carregar_reforma()
-            
-        df_reforma = st.session_state.df_reforma
-        
-        # Criar um dicionário para armazenar os valores
-        data_reforma = {"Categoria": categorias}
-        
-        # Verificar se o DataFrame está vazio
-        if df_reforma.empty:
-            # Criar dados de exemplo para evitar erros
-            for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
-                data_reforma[nome] = ["0%"] * len(categorias)
-            return pd.DataFrame(data_reforma)
-        
-        # Processar dados para cada unidade
-        for unidade, nome in zip(["22", "21"], ["Paraguaçu", "Narandiba"]):
-            # Verificar se "Plano" existe no DataFrame
-            plano_filter = True
-            if "Plano" in df_reforma.columns:
-                plano_filter = df_reforma["Plano"].str.contains("Plano A", case=False, na=False)
-            
-            # Calcular área total da unidade
-            unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & plano_filter]["Area"].sum()
-            valores_reforma = []
-            
-            for coluna, categoria in zip(colunas, categorias):
-                try:
-                    # Verificar se a coluna existe
-                    if coluna not in df_reforma.columns:
-                        valores_reforma.append("0%")
-                        continue
-                    
-                    # Aplicar filtros adequados
-                    if categoria == "Em andamento":
-                        filtro = df_reforma["Projeto"].str.contains("EM ANDAMENTO", case=False, na=False)
-                    elif categoria == "Realizado":
-                        filtro = df_reforma["Projeto"].str.contains("OK", case=False, na=False)
-                    else:
-                        filtro = df_reforma[coluna].str.contains("OK", case=False, na=False)
-                    
-                    # Calcular área e porcentagem
-                    area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & plano_filter & filtro]["Area"].sum()
-                    porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                    valores_reforma.append(f"{porcentagem:.0f}%")
-                except Exception as e:
-                    st.error(f"Erro ao processar categoria {categoria}: {e}")
-                    valores_reforma.append("0%")
-            
-            data_reforma[nome] = valores_reforma
-        
-        # Calcular a média das porcentagens para cada categoria
-        media_grupo_cocal_reforma = []
-        for i in range(len(categorias)):
-            try:
-                # Extrair valores numéricos
-                valor_ppt = float(data_reforma["Paraguaçu"][i].replace("%", ""))
-                valor_nrd = float(data_reforma["Narandiba"][i].replace("%", ""))
-                
-                # Calcular média
-                media = (valor_ppt + valor_nrd) / 2
-                media_grupo_cocal_reforma.append(f"{media:.0f}%")
-            except Exception:
-                media_grupo_cocal_reforma.append("0%")
-        
-        # Adicionar coluna com a média
-        data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
-        
-        return pd.DataFrame(data_reforma)
-    except Exception as e:
-        st.error(f"Erro ao processar dados de reforma: {e}")
-        # Retornar DataFrame vazio com estrutura correta
-        data_vazio = {"Categoria": categorias}
-        for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
-            data_vazio[nome] = ["0%"] * len(categorias)
-        return pd.DataFrame(data_vazio)
-
-def processar_dados_expansao(categorias, colunas):
-    """
-    Processa os dados de expansão e retorna um DataFrame com as métricas.
-    
-    Args:
-        categorias: Lista de categorias para análise
-        colunas: Lista de colunas correspondentes no DataFrame
-        
-    Returns:
-        DataFrame com as métricas de expansão
-    """
-    try:
-        # Verificar se os dados já estão na sessão para evitar recarregamento
-        if "df_expansao" not in st.session_state or st.session_state.df_expansao is None:
-            st.session_state.df_expansao = carregar_expansao()
-            
-        df_expansao = st.session_state.df_expansao
-        
-        # Criar um dicionário para armazenar os valores
-        data_expansao = {"Categoria": categorias}
-        
-        # Verificar se o DataFrame está vazio
-        if df_expansao.empty:
-            # Criar dados de exemplo para evitar erros
-            for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
-                data_expansao[nome] = ["0%"] * len(categorias)
-            return pd.DataFrame(data_expansao)
-        
-        # Processar dados para cada unidade
-        for unidade, nome in zip(["22", "21"], ["Paraguaçu", "Narandiba"]):
-            # Calcular área total da unidade
-            unidade_area = df_expansao[df_expansao["Unidade"] == unidade]["Area"].sum()
-            valores_expansao = []
-            
-            for coluna, categoria in zip(colunas, categorias):
-                try:
-                    # Verificar se a coluna existe
-                    if coluna not in df_expansao.columns:
-                        valores_expansao.append("0%")
-                        continue
-                    
-                    # Aplicar filtros adequados
-                    if categoria == "Em andamento":
-                        filtro = df_expansao["Projeto"].str.contains("EM ANDAMENTO", case=False, na=False)
-                    elif categoria == "Realizado":
-                        filtro = df_expansao["Projeto"].str.contains("OK", case=False, na=False)
-                    else:
-                        filtro = df_expansao[coluna].str.contains("OK", case=False, na=False)
-                    
-                    # Calcular área e porcentagem
-                    area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
-                    porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                    valores_expansao.append(f"{porcentagem:.0f}%")
-                except Exception as e:
-                    st.error(f"Erro ao processar categoria {categoria}: {e}")
-                    valores_expansao.append("0%")
-            
-            data_expansao[nome] = valores_expansao
-        
-        # Calcular a média das porcentagens para cada categoria
-        media_grupo_cocal_expansao = []
-        for i in range(len(categorias)):
-            try:
-                # Extrair valores numéricos
-                valor_ppt = float(data_expansao["Paraguaçu"][i].replace("%", ""))
-                valor_nrd = float(data_expansao["Narandiba"][i].replace("%", ""))
-                
-                # Calcular média
-                media = (valor_ppt + valor_nrd) / 2
-                media_grupo_cocal_expansao.append(f"{media:.0f}%")
-            except Exception:
-                media_grupo_cocal_expansao.append("0%")
-        
-        # Adicionar coluna com a média
-        data_expansao["Grupo Cocal"] = media_grupo_cocal_expansao
-        
-        return pd.DataFrame(data_expansao)
-    except Exception as e:
-        st.error(f"Erro ao processar dados de expansão: {e}")
-        # Retornar DataFrame vazio com estrutura correta
-        data_vazio = {"Categoria": categorias}
-        for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
-            data_vazio[nome] = ["0%"] * len(categorias)
-        return pd.DataFrame(data_vazio)
+    # Métricas de Passagem
+    st.write("### Métricas de Passagem")
+    st.dataframe(df_metrica_passagem, use_container_width=True, hide_index=True)
 
 ########################################## AUDITORIA ##########################################
 
@@ -1860,7 +1752,7 @@ def main_app():
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
-        ("Dashboard", "Registrar", "Atividades", "Reforma e Expansão", "Auditoria", "Extras")
+        ("Dashboard", "Registrar", "Atividades", "Reforma e Passagem", "Auditoria", "Extras")
     )
 
     st.sidebar.markdown("---")  # Linha separadora
@@ -1871,8 +1763,8 @@ def main_app():
         registrar_atividades()
     elif menu_option == "Atividades":
         tarefas_semanais()
-    elif menu_option == "Reforma e Expansão":
-        acompanhamento_reforma_expansao()
+    elif menu_option == "Reforma e Passagem":
+        acompanhamento_reforma_passagem()
     elif menu_option == "Auditoria":
         auditoria()
     elif menu_option == "Extras":
