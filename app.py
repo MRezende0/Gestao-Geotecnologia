@@ -1764,8 +1764,8 @@ def main_app():
         registrar_atividades()
     elif menu_option == "Atividades":
         tarefas_semanais()
-    elif menu_option == "Reforma e Passagem":
-        acompanhamento_reforma_passagem()
+    elif menu_option == "Reforma e Expansão":
+        acompanhamento_reforma_expansao()
     elif menu_option == "Auditoria":
         auditoria()
     elif menu_option == "Extras":
