@@ -1109,94 +1109,128 @@ def acompanhamento_reforma_expansao():
     # Criar um dicionário para armazenar os valores
     data_reforma = {"Categoria": categorias}
     data_expansao = {"Categoria": categorias}
-    data = {"Categoria": categorias}
 
 ######################## REFORMA ########################
 
     # Verificar se o DataFrame não está vazio e contém as colunas necessárias
     required_columns_reforma = ["Unidade", "Setor", "Talhao", "Area", "Plano", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
     
+    # Inicializar o DataFrame de métricas com valores padrão
+    for nome in ["21", "22", "Grupo Cocal"]:
+        data_reforma[nome] = ["0%" for _ in range(len(categorias))]
+    df_metrica_reforma = pd.DataFrame(data_reforma)
+    
     if df_reforma.empty or not all(col in df_reforma.columns for col in required_columns_reforma):
         st.warning("Dados de reforma não disponíveis ou incompletos. Verifique a planilha.")
-        # Criar dados vazios para evitar erros
-        for nome in ["21", "22", "Grupo Cocal"]:
-            data_reforma[nome] = ["0%" for _ in range(len(categorias))]
-        df_metrica_reforma = pd.DataFrame(data_reforma)
     else:
-        for unidade, nome in zip(["21", "22"], ["21", "22"]):
-            unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
-            valores_reforma = []
-            for coluna, categoria in zip(colunas_reforma, categorias):
-                if categoria == "Em andamento":
-                    filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
-                else:
-                    filtro = df_reforma[coluna] == "OK"
-                
-                area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
-                porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-            data_reforma[nome] = valores_reforma
-
-        # Calcular a média das porcentagens para cada categoria na tabela de Reforma
-        media_grupo_cocal_reforma = []
-        for i in range(len(categorias)):
-            # Convertendo os valores para números e calculando a média
-            media = (float(data_reforma["21"][i].replace("%", "").replace(",", ".")) + 
-                    float(data_reforma["22"][i].replace("%", "").replace(",", "."))) / 2
+        try:
+            # Resetar o dicionário para a tabela de Reforma
+            data_reforma = {"Categoria": categorias}
             
-            # Formatando a média como porcentagem
-            media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-
-        # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
-        data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
-
-        # Criar DataFrame para exibição
-        df_metrica_reforma = pd.DataFrame(data_reforma)
+            for unidade, nome in zip(["21", "22"], ["21", "22"]):
+                # Verificar se existem dados para esta unidade
+                if not df_reforma[df_reforma["Unidade"] == unidade].empty:
+                    unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
+                    valores_reforma = []
+                    
+                    for coluna, categoria in zip(colunas_reforma, categorias):
+                        if categoria == "Em andamento":
+                            filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
+                        else:
+                            filtro = df_reforma[coluna] == "OK"
+                        
+                        area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
+                        porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                        valores_reforma.append(f"{porcentagem:,.0f}%")
+                else:
+                    # Se não há dados para esta unidade, usar zeros
+                    valores_reforma = ["0%" for _ in range(len(categorias))]
+                
+                data_reforma[nome] = valores_reforma
+            
+            # Calcular a média das porcentagens para cada categoria na tabela de Reforma
+            media_grupo_cocal_reforma = []
+            for i in range(len(categorias)):
+                try:
+                    # Convertendo os valores para números e calculando a média
+                    valor_21 = float(data_reforma["21"][i].replace("%", "").replace(",", ".")) if "21" in data_reforma and i < len(data_reforma["21"]) else 0
+                    valor_22 = float(data_reforma["22"][i].replace("%", "").replace(",", ".")) if "22" in data_reforma and i < len(data_reforma["22"]) else 0
+                    media = (valor_21 + valor_22) / 2 if "21" in data_reforma and "22" in data_reforma else 0
+                    
+                    # Formatando a média como porcentagem
+                    media_grupo_cocal_reforma.append(f"{media:,.0f}%")
+                except (ValueError, IndexError):
+                    # Em caso de erro, usar zero
+                    media_grupo_cocal_reforma.append("0%")
+            
+            # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
+            data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
+            
+            # Criar DataFrame para exibição
+            df_metrica_reforma = pd.DataFrame(data_reforma)
+        except Exception as e:
+            st.error(f"Erro ao processar dados de reforma: {e}")
 
 ######################## EXPANSÃO ########################
 
     # Verificar se o DataFrame não está vazio e contém as colunas necessárias
     required_columns_expansao = ["Unidade", "Setor", "Talhao", "Area", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
     
+    # Inicializar o DataFrame de métricas com valores padrão
+    for nome in ["21", "22", "Grupo Cocal"]:
+        data_expansao[nome] = ["0%" for _ in range(len(categorias))]
+    df_metrica_expansao = pd.DataFrame(data_expansao)
+    
     if df_expansao.empty or not all(col in df_expansao.columns for col in required_columns_expansao):
         st.warning("Dados de expansão não disponíveis ou incompletos. Verifique a planilha.")
-        # Criar dados vazios para evitar erros
-        for nome in ["21", "22", "Grupo Cocal"]:
-            data_expansao[nome] = ["0%" for _ in range(len(categorias))]
-        df_metrica_expansao = pd.DataFrame(data_expansao)
     else:
-        # Resetar o dicionário para a tabela de Expansão
-        data_expansao = {"Categoria": categorias}
-
-        for unidade, nome in zip(["21", "22"], ["21", "22"]):
-            unidade_area = df_expansao[(df_expansao["Unidade"] == unidade)]["Area"].sum()
-            valores_expansao = []
-            for coluna, categoria in zip(colunas_expansao, categorias):
-                if categoria == "Em andamento":
-                    filtro = df_expansao["Projeto"] == "EM ANDAMENTO"
-                else:
-                    filtro = df_expansao[coluna] == "OK"
-                
-                area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
-                porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                valores_expansao.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-            data_expansao[nome] = valores_expansao
-
-        # Calcular a média das porcentagens para cada categoria na tabela de Expansão
-        media_grupo_cocal_expansao = []
-        for i in range(len(categorias)):
-            # Convertendo os valores para números e calculando a média
-            media = (float(data_expansao["21"][i].replace("%", "").replace(",", ".")) + 
-                    float(data_expansao["22"][i].replace("%", "").replace(",", "."))) / 2
+        try:
+            # Resetar o dicionário para a tabela de Expansão
+            data_expansao = {"Categoria": categorias}
             
-            # Formatando a média como porcentagem
-            media_grupo_cocal_expansao.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-
-        # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Expansão
-        data_expansao["Grupo Cocal"] = media_grupo_cocal_expansao
-
-        # Criar DataFrame para exibição
-        df_metrica_expansao = pd.DataFrame(data_expansao)
+            for unidade, nome in zip(["21", "22"], ["21", "22"]):
+                # Verificar se existem dados para esta unidade
+                if not df_expansao[df_expansao["Unidade"] == unidade].empty:
+                    unidade_area = df_expansao[(df_expansao["Unidade"] == unidade)]["Area"].sum()
+                    valores_expansao = []
+                    
+                    for coluna, categoria in zip(colunas_expansao, categorias):
+                        if categoria == "Em andamento":
+                            filtro = df_expansao["Projeto"] == "EM ANDAMENTO"
+                        else:
+                            filtro = df_expansao[coluna] == "OK"
+                        
+                        area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
+                        porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                        valores_expansao.append(f"{porcentagem:,.0f}%")
+                else:
+                    # Se não há dados para esta unidade, usar zeros
+                    valores_expansao = ["0%" for _ in range(len(categorias))]
+                
+                data_expansao[nome] = valores_expansao
+            
+            # Calcular a média das porcentagens para cada categoria na tabela de Expansão
+            media_grupo_cocal_expansao = []
+            for i in range(len(categorias)):
+                try:
+                    # Convertendo os valores para números e calculando a média
+                    valor_21 = float(data_expansao["21"][i].replace("%", "").replace(",", ".")) if "21" in data_expansao and i < len(data_expansao["21"]) else 0
+                    valor_22 = float(data_expansao["22"][i].replace("%", "").replace(",", ".")) if "22" in data_expansao and i < len(data_expansao["22"]) else 0
+                    media = (valor_21 + valor_22) / 2 if "21" in data_expansao and "22" in data_expansao else 0
+                    
+                    # Formatando a média como porcentagem
+                    media_grupo_cocal_expansao.append(f"{media:,.0f}%")
+                except (ValueError, IndexError):
+                    # Em caso de erro, usar zero
+                    media_grupo_cocal_expansao.append("0%")
+            
+            # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Expansão
+            data_expansao["Grupo Cocal"] = media_grupo_cocal_expansao
+            
+            # Criar DataFrame para exibição
+            df_metrica_expansao = pd.DataFrame(data_expansao)
+        except Exception as e:
+            st.error(f"Erro ao processar dados de expansão: {e}")
 
 ####################### GRÁFICO ########################
 
@@ -1210,41 +1244,45 @@ def acompanhamento_reforma_expansao():
     with col2:
         opcao_visualizacao = st.selectbox("Selecione a unidade:", ["Grupo Cocal", "21", "22"])
 
-    # Escolher qual DataFrame usar com base na seleção
-    if opcao_tipo == "Reforma":
-        df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
-    else:
-        df_selecionado = df_metrica_expansao[["Categoria", opcao_visualizacao]]
+    try:
+        # Escolher qual DataFrame usar com base na seleção
+        if opcao_tipo == "Reforma":
+            df_selecionado = df_metrica_reforma[["Categoria", opcao_visualizacao]]
+        else:
+            df_selecionado = df_metrica_expansao[["Categoria", opcao_visualizacao]]
 
-    df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
+        df_selecionado = df_selecionado.rename(columns={opcao_visualizacao: "Porcentagem"})
 
-    # Convertendo os valores de string para número
-    df_selecionado["Porcentagem"] = df_selecionado["Porcentagem"].str.replace("%", "").str.replace(",", ".").astype(float)
+        # Convertendo os valores de string para número
+        df_selecionado["Porcentagem"] = df_selecionado["Porcentagem"].str.replace("%", "").str.replace(",", ".").astype(float)
 
-    # Criando o gráfico dinâmico
-    fig = px.bar(
-        df_selecionado,
-        x="Porcentagem",
-        y="Categoria",
-        orientation="h",
-        text="Porcentagem",
-        labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
-    )
+        # Criando o gráfico dinâmico
+        fig = px.bar(
+            df_selecionado,
+            x="Porcentagem",
+            y="Categoria",
+            orientation="h",
+            text="Porcentagem",
+            labels={"Porcentagem": "Porcentagem (%)", "Categoria": "Categoria"},
+        )
 
-    # Adicionar esta linha para fixar o eixo X até 100%
-    fig.update_xaxes(range=[0, 105])
+        # Adicionar esta linha para fixar o eixo X até 100%
+        fig.update_xaxes(range=[0, 105])
 
-    fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition='outside')
+        fig.update_traces(marker_color="#76b82a", texttemplate="%{text:.0f}%", textposition='outside')
 
-    fig.update_layout(
-        showlegend=False,  
-        xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
-        yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False)
-    )
+        fig.update_layout(
+            showlegend=False,  
+            xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
+            yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False)
+        )
 
-    # Exibir o gráfico dinâmico no Streamlit
-    st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
-    st.plotly_chart(fig)
+        # Exibir o gráfico dinâmico no Streamlit
+        st.subheader(f"Acompanhamento de {opcao_tipo} - {opcao_visualizacao}")
+        st.plotly_chart(fig)
+    except Exception as e:
+        st.error(f"Erro ao gerar o gráfico: {e}")
+        st.info("Verifique se os dados estão disponíveis e no formato correto.")
 
 ####################### MAPA ########################
 
