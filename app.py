@@ -1098,87 +1098,21 @@ if "projeto_selecionado" in st.session_state:
 
 # Página de Acompanhamento Reforma e Expansão
 def acompanhamento_reforma_expansao():
-
     st.title("🌱 Reforma e Expansão")
 
     # Lista de categorias e colunas correspondentes no DataFrame
     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
     colunas = ["Projeto", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
 
-    # Criar um dicionário para armazenar os valores
-    data_reforma = {"Categoria": categorias}
-    data_expansao = {"Categoria": categorias}
-
-######################## REFORMA ########################
-
-    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-        unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
-        valores_reforma = []
-        for coluna, categoria in zip(colunas, categorias):
-            if categoria == "Em andamento":
-                filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
-            else:
-                filtro = df_reforma[coluna] == "OK"
-            
-            area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
-            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-            valores_reforma.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-        data_reforma[nome] = valores_reforma
-
-    # Calcular a média das porcentagens para cada categoria na tabela de Reforma
-    media_grupo_cocal_reforma = []
-    for i in range(len(categorias)):
-        # Convertendo os valores para números e calculando a média
-        media = (float(data_reforma["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
-                float(data_reforma["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
-        
-        # Formatando a média como porcentagem
-        media_grupo_cocal_reforma.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-
-    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
-    data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
-
-    # Criar DataFrame para exibição
-    df_metrica_reforma = pd.DataFrame(data_reforma)
-
-######################## EXPANSÃO ########################
-
-    # Resetar o dicionário para a tabela de Expansão
-    data_expansao = {"Categoria": categorias}
-
-    for unidade, nome in zip(["PPT", "NRD"], ["Paraguaçu", "Narandiba"]):
-        unidade_area = df_expansao[(df_expansao["Unidade"] == unidade)]["Area"].sum()
-        valores_expansao = []
-        for coluna, categoria in zip(colunas, categorias):
-            if categoria == "Em andamento":
-                filtro = df_expansao["Projeto"] == "EM ANDAMENTO"
-            else:
-                filtro = df_expansao[coluna] == "OK"
-            
-            area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
-            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-            valores_expansao.append(f"{porcentagem:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-        data_expansao[nome] = valores_expansao
-
-    # Calcular a média das porcentagens para cada categoria na tabela de Expansão
-    media_grupo_cocal_expansao = []
-    for i in range(len(categorias)):
-        # Convertendo os valores para números e calculando a média
-        media = (float(data_expansao["Paraguaçu"][i].replace("%", "").replace(",", ".")) + 
-                float(data_expansao["Narandiba"][i].replace("%", "").replace(",", "."))) / 2
-        
-        # Formatando a média como porcentagem
-        media_grupo_cocal_expansao.append(f"{media:,.0f}%")  # Formatar como porcentagem com 2 casas decimais
-
-    # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Expansão
-    data_expansao["Grupo Cocal"] = media_grupo_cocal_expansao
-
-    # Criar DataFrame para exibição
-    df_metrica_expansao = pd.DataFrame(data_expansao)
+    # Processar dados de reforma
+    df_metrica_reforma = processar_dados_reforma(categorias, colunas)
+    
+    # Processar dados de expansão
+    df_metrica_expansao = processar_dados_expansao(categorias, colunas)
 
 ####################### GRÁFICO ########################
 
-    # Divide a tela em 3 colunas
+    # Divide a tela em 2 colunas
     col1, col2 = st.columns(2)
 
     with col1:
@@ -1249,6 +1183,181 @@ def acompanhamento_reforma_expansao():
     # Métricas de Expansão
     st.write("### Métricas de Expansão")
     st.dataframe(df_metrica_expansao, use_container_width=True, hide_index=True)
+
+def processar_dados_reforma(categorias, colunas):
+    """
+    Processa os dados de reforma e retorna um DataFrame com as métricas.
+    
+    Args:
+        categorias: Lista de categorias para análise
+        colunas: Lista de colunas correspondentes no DataFrame
+        
+    Returns:
+        DataFrame com as métricas de reforma
+    """
+    try:
+        # Verificar se os dados já estão na sessão para evitar recarregamento
+        if "df_reforma" not in st.session_state or st.session_state.df_reforma is None:
+            st.session_state.df_reforma = carregar_reforma()
+            
+        df_reforma = st.session_state.df_reforma
+        
+        # Criar um dicionário para armazenar os valores
+        data_reforma = {"Categoria": categorias}
+        
+        # Verificar se o DataFrame está vazio
+        if df_reforma.empty:
+            # Criar dados de exemplo para evitar erros
+            for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
+                data_reforma[nome] = ["0%"] * len(categorias)
+            return pd.DataFrame(data_reforma)
+        
+        # Processar dados para cada unidade
+        for unidade, nome in zip(["22", "21"], ["Paraguaçu", "Narandiba"]):
+            # Verificar se "Plano" existe no DataFrame
+            plano_filter = True
+            if "Plano" in df_reforma.columns:
+                plano_filter = df_reforma["Plano"].str.contains("Plano A", case=False, na=False)
+            
+            # Calcular área total da unidade
+            unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & plano_filter]["Area"].sum()
+            valores_reforma = []
+            
+            for coluna, categoria in zip(colunas, categorias):
+                try:
+                    # Verificar se a coluna existe
+                    if coluna not in df_reforma.columns:
+                        valores_reforma.append("0%")
+                        continue
+                    
+                    # Aplicar filtros adequados
+                    if categoria == "Em andamento":
+                        filtro = df_reforma["Projeto"].str.contains("EM ANDAMENTO", case=False, na=False)
+                    elif categoria == "Realizado":
+                        filtro = df_reforma["Projeto"].str.contains("OK", case=False, na=False)
+                    else:
+                        filtro = df_reforma[coluna].str.contains("OK", case=False, na=False)
+                    
+                    # Calcular área e porcentagem
+                    area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & plano_filter & filtro]["Area"].sum()
+                    porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                    valores_reforma.append(f"{porcentagem:.0f}%")
+                except Exception as e:
+                    st.error(f"Erro ao processar categoria {categoria}: {e}")
+                    valores_reforma.append("0%")
+            
+            data_reforma[nome] = valores_reforma
+        
+        # Calcular a média das porcentagens para cada categoria
+        media_grupo_cocal_reforma = []
+        for i in range(len(categorias)):
+            try:
+                # Extrair valores numéricos
+                valor_ppt = float(data_reforma["Paraguaçu"][i].replace("%", ""))
+                valor_nrd = float(data_reforma["Narandiba"][i].replace("%", ""))
+                
+                # Calcular média
+                media = (valor_ppt + valor_nrd) / 2
+                media_grupo_cocal_reforma.append(f"{media:.0f}%")
+            except Exception:
+                media_grupo_cocal_reforma.append("0%")
+        
+        # Adicionar coluna com a média
+        data_reforma["Grupo Cocal"] = media_grupo_cocal_reforma
+        
+        return pd.DataFrame(data_reforma)
+    except Exception as e:
+        st.error(f"Erro ao processar dados de reforma: {e}")
+        # Retornar DataFrame vazio com estrutura correta
+        data_vazio = {"Categoria": categorias}
+        for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
+            data_vazio[nome] = ["0%"] * len(categorias)
+        return pd.DataFrame(data_vazio)
+
+def processar_dados_expansao(categorias, colunas):
+    """
+    Processa os dados de expansão e retorna um DataFrame com as métricas.
+    
+    Args:
+        categorias: Lista de categorias para análise
+        colunas: Lista de colunas correspondentes no DataFrame
+        
+    Returns:
+        DataFrame com as métricas de expansão
+    """
+    try:
+        # Verificar se os dados já estão na sessão para evitar recarregamento
+        if "df_expansao" not in st.session_state or st.session_state.df_expansao is None:
+            st.session_state.df_expansao = carregar_expansao()
+            
+        df_expansao = st.session_state.df_expansao
+        
+        # Criar um dicionário para armazenar os valores
+        data_expansao = {"Categoria": categorias}
+        
+        # Verificar se o DataFrame está vazio
+        if df_expansao.empty:
+            # Criar dados de exemplo para evitar erros
+            for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
+                data_expansao[nome] = ["0%"] * len(categorias)
+            return pd.DataFrame(data_expansao)
+        
+        # Processar dados para cada unidade
+        for unidade, nome in zip(["22", "21"], ["Paraguaçu", "Narandiba"]):
+            # Calcular área total da unidade
+            unidade_area = df_expansao[df_expansao["Unidade"] == unidade]["Area"].sum()
+            valores_expansao = []
+            
+            for coluna, categoria in zip(colunas, categorias):
+                try:
+                    # Verificar se a coluna existe
+                    if coluna not in df_expansao.columns:
+                        valores_expansao.append("0%")
+                        continue
+                    
+                    # Aplicar filtros adequados
+                    if categoria == "Em andamento":
+                        filtro = df_expansao["Projeto"].str.contains("EM ANDAMENTO", case=False, na=False)
+                    elif categoria == "Realizado":
+                        filtro = df_expansao["Projeto"].str.contains("OK", case=False, na=False)
+                    else:
+                        filtro = df_expansao[coluna].str.contains("OK", case=False, na=False)
+                    
+                    # Calcular área e porcentagem
+                    area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
+                    porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                    valores_expansao.append(f"{porcentagem:.0f}%")
+                except Exception as e:
+                    st.error(f"Erro ao processar categoria {categoria}: {e}")
+                    valores_expansao.append("0%")
+            
+            data_expansao[nome] = valores_expansao
+        
+        # Calcular a média das porcentagens para cada categoria
+        media_grupo_cocal_expansao = []
+        for i in range(len(categorias)):
+            try:
+                # Extrair valores numéricos
+                valor_ppt = float(data_expansao["Paraguaçu"][i].replace("%", ""))
+                valor_nrd = float(data_expansao["Narandiba"][i].replace("%", ""))
+                
+                # Calcular média
+                media = (valor_ppt + valor_nrd) / 2
+                media_grupo_cocal_expansao.append(f"{media:.0f}%")
+            except Exception:
+                media_grupo_cocal_expansao.append("0%")
+        
+        # Adicionar coluna com a média
+        data_expansao["Grupo Cocal"] = media_grupo_cocal_expansao
+        
+        return pd.DataFrame(data_expansao)
+    except Exception as e:
+        st.error(f"Erro ao processar dados de expansão: {e}")
+        # Retornar DataFrame vazio com estrutura correta
+        data_vazio = {"Categoria": categorias}
+        for nome in ["Paraguaçu", "Narandiba", "Grupo Cocal"]:
+            data_vazio[nome] = ["0%"] * len(categorias)
+        return pd.DataFrame(data_vazio)
 
 ########################################## AUDITORIA ##########################################
 
