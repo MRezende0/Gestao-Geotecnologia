@@ -3,4 +3,4 @@ primaryColor = "#76b82a"  # Verde Cocal
 backgroundColor = "#ffffff"  # Branco
 secondaryBackgroundColor = "#f5f5f5"  # Cinza claro
 textColor = "#000000"  # Preto
-font = "sans serif"
+font = "Roboto"
