@@ -355,12 +355,20 @@ def carregar_dados_base():
 @st.cache_data(ttl=60)
 def carregar_reforma() -> pd.DataFrame:
     """Carrega os dados de reforma."""
-    return load_data("Reforma")
+    df = load_data("Reforma")
+    # Converter a coluna Area para numérico se existir
+    if not df.empty and "Area" in df.columns:
+        df["Area"] = pd.to_numeric(df["Area"], errors="coerce").fillna(0)
+    return df
 
 @st.cache_data(ttl=60)
 def carregar_expansao() -> pd.DataFrame:
     """Carrega os dados de expansão."""
-    return load_data("Expansão")
+    df = load_data("Expansão")
+    # Converter a coluna Area para numérico se existir
+    if not df.empty and "Area" in df.columns:
+        df["Area"] = pd.to_numeric(df["Area"], errors="coerce").fillna(0)
+    return df
 
 @st.cache_data(ttl=60)
 def carregar_dados_pos() -> pd.DataFrame:
@@ -996,10 +1004,10 @@ def tarefas_semanais():
     if df_tarefas.empty:
         st.info("Nenhuma atividade registrada.")
         return
-
+    
     # Aplicando os filtros e retornando o DataFrame filtrado
     df_tarefas = filtros_atividades(df_tarefas)
-
+    
     # Converter a coluna 'Setor' para inteiro, se possível
     df_tarefas.loc[:, "Setor"] = pd.to_numeric(df_tarefas["Setor"], errors="coerce").astype("Int64")
 
@@ -1098,9 +1106,36 @@ if "projeto_selecionado" in st.session_state:
 
 # Página de Acompanhamento Reforma e Expansão
 def acompanhamento_reforma_expansao():
+    
+    # Carregar dados novamente para garantir que estão atualizados
+    df_reforma = carregar_reforma()
+    df_expansao = carregar_expansao()
 
     st.title("🌱 Reforma e Expansão")
 
+    # Adicionar logs para debug
+    with st.expander("Informações de Debug"):
+        col_debug1, col_debug2 = st.columns(2)
+        
+        with col_debug1:
+            st.write("#### Dados de Reforma")
+            st.write(f"Número de linhas: {len(df_reforma)}")
+            st.write(f"Colunas: {df_reforma.columns.tolist()}")
+            if not df_reforma.empty:
+                st.write("Valores únicos de Unidade: ", df_reforma["Unidade"].unique())
+                st.write("Valores únicos de Plano: ", df_reforma["Plano"].unique() if "Plano" in df_reforma.columns else "Coluna Plano não encontrada")
+                st.write("Primeiras linhas:")
+                st.dataframe(df_reforma.head(3), use_container_width=True)
+        
+        with col_debug2:
+            st.write("#### Dados de Expansão")
+            st.write(f"Número de linhas: {len(df_expansao)}")
+            st.write(f"Colunas: {df_expansao.columns.tolist()}")
+            if not df_expansao.empty:
+                st.write("Valores únicos de Unidade: ", df_expansao["Unidade"].unique())
+                st.write("Primeiras linhas:")
+                st.dataframe(df_expansao.head(3), use_container_width=True)
+    
     # Lista de categorias e colunas correspondentes no DataFrame
     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
     colunas_reforma = ["Plano", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
@@ -1109,8 +1144,8 @@ def acompanhamento_reforma_expansao():
     # Criar um dicionário para armazenar os valores
     data_reforma = {"Categoria": categorias}
     data_expansao = {"Categoria": categorias}
-
-######################## REFORMA ########################
+    
+    ######################## REFORMA ########################
 
     # Verificar se o DataFrame não está vazio e contém as colunas necessárias
     required_columns_reforma = ["Unidade", "Setor", "Talhao", "Area", "Plano", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
@@ -1127,25 +1162,52 @@ def acompanhamento_reforma_expansao():
             # Resetar o dicionário para a tabela de Reforma
             data_reforma = {"Categoria": categorias}
             
+            # Verificar se existem dados para cada unidade
             for unidade, nome in zip(["21", "22"], ["21", "22"]):
+                # Filtrar dados da unidade
+                df_unidade = df_reforma[df_reforma["Unidade"] == unidade]
+                
                 # Verificar se existem dados para esta unidade
-                if not df_reforma[df_reforma["Unidade"] == unidade].empty:
-                    unidade_area = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A")]["Area"].sum()
-                    valores_reforma = []
+                if not df_unidade.empty:
+                    # Filtrar dados do plano "REFORMA PLANO A"
+                    df_plano = df_unidade[df_unidade["Plano"] == "REFORMA PLANO A"]
                     
-                    for coluna, categoria in zip(colunas_reforma, categorias):
-                        if categoria == "Em andamento":
-                            filtro = df_reforma["Projeto"] == "EM ANDAMENTO"
-                        else:
-                            filtro = df_reforma[coluna] == "OK"
+                    # Verificar se existem dados para este plano
+                    if not df_plano.empty:
+                        # Calcular área total
+                        unidade_area = df_plano["Area"].sum()
+                        valores_reforma = []
                         
-                        area_categoria = df_reforma[(df_reforma["Unidade"] == unidade) & (df_reforma["Plano"] == "REFORMA PLANO A") & filtro]["Area"].sum()
-                        porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                        valores_reforma.append(f"{porcentagem:,.0f}%")
+                        # Calcular porcentagens para cada categoria
+                        for coluna, categoria in zip(colunas_reforma, categorias):
+                            try:
+                                if categoria == "Em andamento":
+                                    # Para "Em andamento", filtrar por Projeto = "EM ANDAMENTO"
+                                    filtro = df_plano["Projeto"] == "EM ANDAMENTO"
+                                elif categoria == "Realizado":
+                                    # Para "Realizado", considerar todos os dados do plano
+                                    filtro = df_plano["Plano"] == "REFORMA PLANO A"
+                                else:
+                                    # Para outras categorias, filtrar pela coluna correspondente
+                                    filtro = df_plano[coluna] == "OK"
+                                
+                                # Calcular área da categoria
+                                area_categoria = df_plano[filtro]["Area"].sum()
+                                
+                                # Calcular porcentagem
+                                porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                                valores_reforma.append(f"{porcentagem:,.0f}%")
+                            except Exception as e:
+                                st.error(f"Erro ao calcular {categoria} para unidade {unidade}: {e}")
+                                valores_reforma.append("0%")
+                    else:
+                        # Se não há dados para este plano, usar zeros
+                        valores_reforma = ["0%" for _ in range(len(categorias))]
                 else:
                     # Se não há dados para esta unidade, usar zeros
                     valores_reforma = ["0%" for _ in range(len(categorias))]
                 
+                # Adicionar valores ao dicionário
                 data_reforma[nome] = valores_reforma
             
             # Calcular a média das porcentagens para cada categoria na tabela de Reforma
@@ -1159,8 +1221,9 @@ def acompanhamento_reforma_expansao():
                     
                     # Formatando a média como porcentagem
                     media_grupo_cocal_reforma.append(f"{media:,.0f}%")
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as e:
                     # Em caso de erro, usar zero
+                    st.error(f"Erro ao calcular média para categoria {i}: {e}")
                     media_grupo_cocal_reforma.append("0%")
             
             # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Reforma
@@ -1171,7 +1234,7 @@ def acompanhamento_reforma_expansao():
         except Exception as e:
             st.error(f"Erro ao processar dados de reforma: {e}")
 
-######################## EXPANSÃO ########################
+    ######################## EXPANSÃO ########################
 
     # Verificar se o DataFrame não está vazio e contém as colunas necessárias
     required_columns_expansao = ["Unidade", "Setor", "Talhao", "Area", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
@@ -1188,25 +1251,44 @@ def acompanhamento_reforma_expansao():
             # Resetar o dicionário para a tabela de Expansão
             data_expansao = {"Categoria": categorias}
             
+            # Verificar se existem dados para cada unidade
             for unidade, nome in zip(["21", "22"], ["21", "22"]):
+                # Filtrar dados da unidade
+                df_unidade = df_expansao[df_expansao["Unidade"] == unidade]
+                
                 # Verificar se existem dados para esta unidade
-                if not df_expansao[df_expansao["Unidade"] == unidade].empty:
-                    unidade_area = df_expansao[(df_expansao["Unidade"] == unidade)]["Area"].sum()
+                if not df_unidade.empty:
+                    # Calcular área total
+                    unidade_area = df_unidade["Area"].sum()
                     valores_expansao = []
                     
+                    # Calcular porcentagens para cada categoria
                     for coluna, categoria in zip(colunas_expansao, categorias):
-                        if categoria == "Em andamento":
-                            filtro = df_expansao["Projeto"] == "EM ANDAMENTO"
-                        else:
-                            filtro = df_expansao[coluna] == "OK"
-                        
-                        area_categoria = df_expansao[(df_expansao["Unidade"] == unidade) & filtro]["Area"].sum()
-                        porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                        valores_expansao.append(f"{porcentagem:,.0f}%")
+                        try:
+                            if categoria == "Em andamento":
+                                # Para "Em andamento", filtrar por Projeto = "EM ANDAMENTO"
+                                filtro = df_unidade["Projeto"] == "EM ANDAMENTO"
+                            elif categoria == "Realizado":
+                                # Para "Realizado", filtrar por Projeto = "REALIZADO"
+                                filtro = df_unidade["Projeto"] == "REALIZADO"
+                            else:
+                                # Para outras categorias, filtrar pela coluna correspondente
+                                filtro = df_unidade[coluna] == "OK"
+                            
+                            # Calcular área da categoria
+                            area_categoria = df_unidade[filtro]["Area"].sum()
+                            
+                            # Calcular porcentagem
+                            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                            valores_expansao.append(f"{porcentagem:,.0f}%")
+                        except Exception as e:
+                            st.error(f"Erro ao calcular {categoria} para unidade {unidade}: {e}")
+                            valores_expansao.append("0%")
                 else:
                     # Se não há dados para esta unidade, usar zeros
                     valores_expansao = ["0%" for _ in range(len(categorias))]
                 
+                # Adicionar valores ao dicionário
                 data_expansao[nome] = valores_expansao
             
             # Calcular a média das porcentagens para cada categoria na tabela de Expansão
@@ -1220,8 +1302,9 @@ def acompanhamento_reforma_expansao():
                     
                     # Formatando a média como porcentagem
                     media_grupo_cocal_expansao.append(f"{media:,.0f}%")
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as e:
                     # Em caso de erro, usar zero
+                    st.error(f"Erro ao calcular média para categoria {i}: {e}")
                     media_grupo_cocal_expansao.append("0%")
             
             # Adicionar a coluna 'Grupo Cocal' com a média das porcentagens na tabela de Expansão
@@ -1232,7 +1315,7 @@ def acompanhamento_reforma_expansao():
         except Exception as e:
             st.error(f"Erro ao processar dados de expansão: {e}")
 
-####################### GRÁFICO ########################
+    ####################### GRÁFICO ########################
 
     # Divide a tela em 3 colunas
     col1, col2 = st.columns(2)
@@ -1284,7 +1367,7 @@ def acompanhamento_reforma_expansao():
         st.error(f"Erro ao gerar o gráfico: {e}")
         st.info("Verifique se os dados estão disponíveis e no formato correto.")
 
-####################### MAPA ########################
+    ####################### MAPA ########################
 
     st.divider()
 
@@ -1296,7 +1379,7 @@ def acompanhamento_reforma_expansao():
 
     components.iframe(url_mapa, height=400, scrolling=True)
 
-####################### TABELAS ########################
+    ####################### TABELAS ########################
 
     st.divider()
 
