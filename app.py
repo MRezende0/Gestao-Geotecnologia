@@ -1116,6 +1116,55 @@ def acompanhamento_reforma_expansao():
 
     st.title("🌱 Reforma e Expansão")
 
+    # Adicionar logs para debug no início para diagnóstico
+    with st.expander("Informações de Debug", expanded=False):
+        col_debug1, col_debug2 = st.columns(2)
+        
+        with col_debug1:
+            st.write("#### Dados de Reforma")
+            st.write(f"Número de linhas: {len(df_reforma)}")
+            st.write(f"Colunas: {df_reforma.columns.tolist()}")
+            if not df_reforma.empty:
+                st.write("Valores únicos de Unidade: ", df_reforma["Unidade"].unique())
+                st.write("Valores únicos de Plano: ", df_reforma["Plano"].unique() if "Plano" in df_reforma.columns else "Coluna Plano não encontrada")
+                st.write("Valores únicos de Projeto: ", df_reforma["Projeto"].unique() if "Projeto" in df_reforma.columns else "Coluna Projeto não encontrada")
+                st.write("Tipo de dados da coluna Area:", df_reforma["Area"].dtype)
+                st.write("Soma total da coluna Area:", df_reforma["Area"].sum())
+                st.write("Primeiras linhas:")
+                st.dataframe(df_reforma.head(5), use_container_width=True)
+                
+                # Verificar valores específicos para debug
+                for unidade in df_reforma["Unidade"].unique():
+                    df_unidade = df_reforma[df_reforma["Unidade"] == unidade]
+                    st.write(f"Unidade {unidade} - Total de área: {df_unidade['Area'].sum()}")
+                    st.write(f"  Valores únicos de Projeto: {df_unidade['Projeto'].unique()}")
+                    st.write(f"  Valores únicos de Aprovado: {df_unidade['Aprovado'].unique()}")
+                    st.write(f"  Valores únicos de Sistematizacao: {df_unidade['Sistematizacao'].unique()}")
+                    st.write(f"  Valores únicos de Loc: {df_unidade['Loc'].unique()}")
+                    st.write(f"  Valores únicos de Pre_Plantio: {df_unidade['Pre_Plantio'].unique()}")
+        
+        with col_debug2:
+            st.write("#### Dados de Expansão")
+            st.write(f"Número de linhas: {len(df_expansao)}")
+            st.write(f"Colunas: {df_expansao.columns.tolist()}")
+            if not df_expansao.empty:
+                st.write("Valores únicos de Unidade: ", df_expansao["Unidade"].unique())
+                st.write("Valores únicos de Projeto: ", df_expansao["Projeto"].unique() if "Projeto" in df_expansao.columns else "Coluna Projeto não encontrada")
+                st.write("Tipo de dados da coluna Area:", df_expansao["Area"].dtype)
+                st.write("Soma total da coluna Area:", df_expansao["Area"].sum())
+                st.write("Primeiras linhas:")
+                st.dataframe(df_expansao.head(5), use_container_width=True)
+                
+                # Verificar valores específicos para debug
+                for unidade in df_expansao["Unidade"].unique():
+                    df_unidade = df_expansao[df_expansao["Unidade"] == unidade]
+                    st.write(f"Unidade {unidade} - Total de área: {df_unidade['Area'].sum()}")
+                    st.write(f"  Valores únicos de Projeto: {df_unidade['Projeto'].unique()}")
+                    st.write(f"  Valores únicos de Aprovado: {df_unidade['Aprovado'].unique()}")
+                    st.write(f"  Valores únicos de Sistematizacao: {df_unidade['Sistematizacao'].unique()}")
+                    st.write(f"  Valores únicos de Loc: {df_unidade['Loc'].unique()}")
+                    st.write(f"  Valores únicos de Pre_Plantio: {df_unidade['Pre_Plantio'].unique()}")
+    
     # Lista de categorias e colunas correspondentes no DataFrame
     categorias = ["Em andamento", "Realizado", "Aprovado", "Sistematizacao", "Loc", "Pre-Plantio"]
     colunas_reforma = ["Plano", "Projeto", "Aprovado", "Sistematizacao", "Loc", "Pre_Plantio"]
@@ -1149,52 +1198,32 @@ def acompanhamento_reforma_expansao():
                 
                 # Verificar se existem dados para esta unidade
                 if not df_unidade.empty:
-                    # Procurar pelo plano correto
-                    planos_possiveis = ["Plano A"]
-                    plano_encontrado = None
+                    # Calcular área total da unidade
+                    unidade_area = df_unidade["Area"].sum()
+                    valores_reforma = []
                     
-                    for plano in planos_possiveis:
-                        if plano in df_unidade["Plano"].unique():
-                            plano_encontrado = plano
-                            break
-                    
-                    if plano_encontrado:
-                        # Filtrar dados do plano encontrado
-                        df_plano = df_unidade[df_unidade["Plano"] == plano_encontrado]
-                        
-                        # Verificar se existem dados para este plano
-                        if not df_plano.empty:
-                            # Calcular área total
-                            unidade_area = df_plano["Area"].sum()
-                            valores_reforma = []
+                    # Calcular porcentagens para cada categoria
+                    for coluna, categoria in zip(colunas_reforma, categorias):
+                        try:
+                            if categoria == "Em andamento":
+                                # Para "Em andamento", filtrar por Projeto = "EM ANDAMENTO"
+                                filtro = df_unidade["Projeto"] == "EM ANDAMENTO"
+                            elif categoria == "Realizado":
+                                # Para "Realizado", filtrar por Projeto = "OK"
+                                filtro = df_unidade["Projeto"] == "OK"
+                            else:
+                                # Para outras categorias, filtrar pela coluna correspondente
+                                # Considerar tanto "OK" quanto valores preenchidos (não vazios)
+                                filtro = (df_unidade[coluna] == "OK") | (df_unidade[coluna].notna() & (df_unidade[coluna] != ""))
                             
-                            # Calcular porcentagens para cada categoria
-                            for coluna, categoria in zip(colunas_reforma, categorias):
-                                try:
-                                    if categoria == "Em andamento":
-                                        # Para "Em andamento", filtrar por Projeto = "EM ANDAMENTO"
-                                        filtro = df_plano["Projeto"] == "EM ANDAMENTO"
-                                    elif categoria == "Realizado":
-                                        # Para "Realizado", considerar todos os dados do plano
-                                        filtro = df_plano["Plano"] == plano_encontrado
-                                    else:
-                                        # Para outras categorias, filtrar pela coluna correspondente
-                                        filtro = df_plano[coluna] == "OK"
-                                    
-                                    # Calcular área da categoria
-                                    area_categoria = df_plano[filtro]["Area"].sum()
-                                    
-                                    # Calcular porcentagem
-                                    porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
-                                    valores_reforma.append(f"{porcentagem:,.0f}%")
-                                except Exception as e:
-                                    valores_reforma.append("0%")
-                        else:
-                            # Se não há dados para este plano, usar zeros
-                            valores_reforma = ["0%" for _ in range(len(categorias))]
-                    else:
-                        # Se não encontrou o plano, usar zeros
-                        valores_reforma = ["0%" for _ in range(len(categorias))]
+                            # Calcular área da categoria
+                            area_categoria = df_unidade[filtro]["Area"].sum()
+                            
+                            # Calcular porcentagem
+                            porcentagem = (area_categoria / unidade_area) * 100 if unidade_area > 0 else 0
+                            valores_reforma.append(f"{porcentagem:,.0f}%")
+                        except Exception as e:
+                            valores_reforma.append("0%")
                 else:
                     # Se não há dados para esta unidade, usar zeros
                     valores_reforma = ["0%" for _ in range(len(categorias))]
@@ -1260,11 +1289,12 @@ def acompanhamento_reforma_expansao():
                                 # Para "Em andamento", filtrar por Projeto = "EM ANDAMENTO"
                                 filtro = df_unidade["Projeto"] == "EM ANDAMENTO"
                             elif categoria == "Realizado":
-                                # Para "Realizado", filtrar por Projeto = "REALIZADO"
-                                filtro = df_unidade["Projeto"] == "REALIZADO"
+                                # Para "Realizado", filtrar por Projeto = "OK"
+                                filtro = df_unidade["Projeto"] == "OK"
                             else:
                                 # Para outras categorias, filtrar pela coluna correspondente
-                                filtro = df_unidade[coluna] == "OK"
+                                # Considerar tanto "OK" quanto valores preenchidos (não vazios)
+                                filtro = (df_unidade[coluna] == "OK") | (df_unidade[coluna].notna() & (df_unidade[coluna] != ""))
                             
                             # Calcular área da categoria
                             area_categoria = df_unidade[filtro]["Area"].sum()
@@ -1381,33 +1411,6 @@ def acompanhamento_reforma_expansao():
     # Métricas de Expansão
     st.write("### Métricas de Expansão")
     st.dataframe(df_metrica_expansao, use_container_width=True, hide_index=True)
-
-    # Adicionar logs para debug
-    with st.expander("Informações de Debug"):
-        col_debug1, col_debug2 = st.columns(2)
-        
-        with col_debug1:
-            st.write("#### Dados de Reforma")
-            st.write(f"Número de linhas: {len(df_reforma)}")
-            st.write(f"Colunas: {df_reforma.columns.tolist()}")
-            if not df_reforma.empty:
-                st.write("Valores únicos de Unidade: ", df_reforma["Unidade"].unique())
-                st.write("Valores únicos de Plano: ", df_reforma["Plano"].unique() if "Plano" in df_reforma.columns else "Coluna Plano não encontrada")
-                st.write("Tipo de dados da coluna Area:", df_reforma["Area"].dtype)
-                st.write("Soma total da coluna Area:", df_reforma["Area"].sum())
-                st.write("Primeiras linhas:")
-                st.dataframe(df_reforma.head(3), use_container_width=True)
-        
-        with col_debug2:
-            st.write("#### Dados de Expansão")
-            st.write(f"Número de linhas: {len(df_expansao)}")
-            st.write(f"Colunas: {df_expansao.columns.tolist()}")
-            if not df_expansao.empty:
-                st.write("Valores únicos de Unidade: ", df_expansao["Unidade"].unique())
-                st.write("Tipo de dados da coluna Area:", df_expansao["Area"].dtype)
-                st.write("Soma total da coluna Area:", df_expansao["Area"].sum())
-                st.write("Primeiras linhas:")
-                st.dataframe(df_expansao.head(3), use_container_width=True)
 
 ########################################## AUDITORIA ##########################################
 
