@@ -834,6 +834,41 @@ def registrar_atividades():
         else:
             df_editavel = get_data("expansao")
             
+        # Verificar se a coluna Setor existe
+        if "Setor" not in df_editavel.columns:
+            # Tentar encontrar variações do nome da coluna
+            for col in df_editavel.columns:
+                if col.lower() in ["setor", "numero_setor", "num_setor", "nº setor", "n° setor"]:
+                    df_editavel = df_editavel.rename(columns={col: "Setor"})
+                    break
+            # Se ainda não existir, criar a coluna
+            if "Setor" not in df_editavel.columns:
+                df_editavel["Setor"] = 0
+        
+        # Converter Setor para numérico para garantir ordenação correta
+        df_editavel["Setor"] = pd.to_numeric(df_editavel["Setor"], errors='coerce').fillna(0).astype(int)
+        
+        # Ordenar o DataFrame pelo número do setor em ordem crescente
+        df_editavel = df_editavel.sort_values(by="Setor")
+        
+        # Adicionar filtro de setor
+        st.markdown("#### 🔍 Filtrar por Setor")
+
+        
+        # Obter lista de setores únicos
+        setores_unicos = sorted(df_editavel["Setor"].unique())
+        
+        # Criar um campo de texto para filtrar por setor
+        filtro_setor = st.text_input("Digite o número do setor:")
+        
+        # Aplicar filtro se o usuário digitar algo
+        if filtro_setor:
+            try:
+                setor_filtrado = int(filtro_setor)
+                df_editavel = df_editavel[df_editavel["Setor"] == setor_filtrado]
+            except ValueError:
+                st.warning("Por favor, digite um número válido para o setor")
+        
         # Criar um editor de dados
         df_editado = st.data_editor(
             df_editavel,
@@ -841,6 +876,12 @@ def registrar_atividades():
             use_container_width=True,
             hide_index=True,
             column_config={
+                "Setor": st.column_config.NumberColumn(
+                    "Setor",
+                    min_value=0,
+                    step=1,
+                    format="%d"
+                ),
                 "Unidade": st.column_config.SelectboxColumn(
                     "Unidade",
                     options=["21", "22"]
