@@ -699,8 +699,8 @@ def dashboard():
             ),
             "Tipo": st.column_config.SelectboxColumn(
                 "Tipo",
-                options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Colheita", "Projeto de Sulcação", 
-                        "Projeto de Fertirrigação", "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Mapa de Pós-Aplicação", "Mapa de Cadastro", "Mapa de Expansão", "Auditoria", "Outro"]
+                options=["Projeto de Sistematização", "Mapa de Sistematização", "LOC", "Projeto de Transbordo", "Projeto de Fertirrigação", "Projeto de Sulcação", 
+                        "Mapa de Pré-Plantio", "Mapa de Pós-Plantio", "Projeto de Colheita", "Mapa de Cadastro"]
             ),
             "Status": st.column_config.SelectboxColumn(
                 "Status",
@@ -1137,6 +1137,42 @@ def registrar_atividades():
 def tarefas_semanais():
     st.title("📂 Atividades")
 
+    # Adicionar CSS personalizado para melhorar a aparência
+    st.markdown("""
+    <style>
+    .column-divider {
+        border-left: 1px solid #e0e0e0;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        margin-left: -1px;
+        top: 0;
+    }
+    
+    .status-header {
+        background-color: #f0f2f6;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+        text-align: center;
+        font-weight: bold;
+        color: #31333F;
+    }
+    
+    /* Estilo para os botões de card */
+    button[data-testid="baseButton-secondary"] {
+        background-color: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        text-align: left;
+        margin-bottom: 10px;
+        height: auto;
+        min-height: 60px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # Carregar os dados de tarefas
     df_tarefas = get_data("tarefas")
 
@@ -1177,32 +1213,70 @@ def tarefas_semanais():
     if filtro_colaborador:
         df_tarefas = df_tarefas[df_tarefas["Colaborador"] == filtro_colaborador]
 
-    # Divide a tela em 3 colunas
-    col1, col2, col3 = st.columns(3)
-
-        # Track if any card is clicked
+    # Definir os status possíveis e seus ícones
+    status_colunas = ["A fazer", "Em andamento", "A validar", "Concluído"]
+    status_icones = ["📋", "⏳", "✅", "🏆"]
+    
+    # Criar 4 colunas para os diferentes status
+    colunas = st.columns(4)
+    
+    # Adicionar títulos estilizados às colunas
+    for i, (status, icone) in enumerate(zip(status_colunas, status_icones)):
+        with colunas[i]:
+            st.markdown(f"""
+            <div class="status-header">
+                {icone} {status}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Adicionar linha divisória vertical (exceto para a primeira coluna)
+            if i > 0:
+                st.markdown(f"""
+                <div class="column-divider"></div>
+                """, unsafe_allow_html=True)
+    
+    # Agrupar tarefas por status
+    tarefas_por_status = {status: df_tarefas[df_tarefas["Status"] == status] for status in status_colunas}
+    
+    # Track if any card is clicked
     clicked_card = None
-
-    for i, row in df_tarefas.iterrows():
-        # Determine which column to use
-        current_col = col1 if i % 3 == 0 else (col2 if i % 3 == 1 else col3)
-        
-        with current_col:
-            # Create a single button for the entire card
-            if st.button(
-                f"Setor {row['Setor']} | {row['Colaborador']} | {row['Tipo']}",
-                key=f"card_{i}",
-                use_container_width=True,
-            ):
-                st.session_state["projeto_selecionado"] = row.to_dict()
-                st.rerun()
+    
+    # Exibir cards em cada coluna correspondente ao status
+    for i, status in enumerate(status_colunas):
+        with colunas[i]:
+            if tarefas_por_status[status].empty:
+                st.info(f"Nenhuma atividade com status '{status}'")
+            else:
+                # Criar um container para manter os cards alinhados
+                for j, row in tarefas_por_status[status].iterrows():
+                    # Criar um botão estilizado como card
+                    if st.button(
+                        f"Setor {row['Setor']} | {row['Colaborador']} | {row['Tipo']}",
+                        key=f"card_{status}_{j}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["projeto_selecionado"] = row.to_dict()
+                        st.rerun()
 
 # Verificar se um projeto foi selecionado
 if "projeto_selecionado" in st.session_state:
     tarefa = st.session_state["projeto_selecionado"]
-
-    with st.form(key="edt_form"):
+    
+    # Criar um container para o formulário com um botão de fechar no canto superior direito
+    with st.container():
+        # Criar duas colunas, uma para o título e outra para o botão de fechar
+        col_titulo, col_fechar = st.columns([5, 1])
+        
+        with col_titulo:
             st.subheader("Editar Tarefa")
+        
+        with col_fechar:
+            if st.button("❌ Fechar", key="btn_fechar_tarefa"):
+                st.session_state.pop("projeto_selecionado", None)
+                st.rerun()
+    
+    # Formulário de edição
+    with st.form(key="edt_form"):
             Data = st.date_input("Data", value=datetime.today().date())
             Setor = st.number_input("Setor", value=tarefa["Setor"])
             Colaborador = st.selectbox("Colaborador", options=["", "Ana", "Camila", "Gustavo", "Maico", "Márcio", "Pedro", "Talita", "Washington", "Willian", "Iago"], 
@@ -1469,7 +1543,7 @@ def acompanhamento_reforma_expansao():
         fig.update_layout(
             showlegend=False,  
             xaxis=dict(showgrid=False, showticklabels=True, title='Porcentagem (%)', showline=False, zeroline=False),
-            yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False)
+            yaxis=dict(showgrid=False, showticklabels=True, title='', showline=False, zeroline=False),
         )
 
         # Exibir o gráfico dinâmico no Streamlit
