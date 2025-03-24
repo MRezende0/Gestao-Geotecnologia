@@ -1555,11 +1555,18 @@ def acompanhamento_reforma_expansao():
 
         st.subheader("Mapa")
 
-        # Exemplo: adicionando um parâmetro (verifique na documentação se 'scrollWheelZoom' está disponível)
-        url_mapa = ("https://cocal.maps.arcgis.com/apps/Embed/index.html?"
-                    "webmap=e8cd98419206476ca3d0dc64bd12f93f&scrollWheelZoom=true")
-
-        components.iframe(url_mapa, height=400, scrolling=True)
+        # Incorporando o mapa ArcGIS usando components.html
+        arcgis_html = """
+        <html>
+        <head>
+            <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
+        </head>
+        <body>
+            <arcgis-embedded-map style="height:600px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+        </body>
+        </html>
+        """
+        components.html(arcgis_html, height=650, scrolling=False)
 
         ####################### TABELAS ########################
         st.divider()
