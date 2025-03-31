@@ -949,13 +949,15 @@ def registrar_atividades():
                 df = pd.read_excel(arquivo)
                 
                 # Verificar colunas necessárias
-                colunas = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
-                if not all(col in df.columns for col in colunas):
-                    st.error("Arquivo deve conter: DESC_OPERAÇÃO, DATA, SETOR, TALHÃO, AREA")
+                colunas_obrigatorias = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
+                colunas_faltantes = [col for col in colunas_obrigatorias if col not in df.columns]
+                
+                if colunas_faltantes:
+                    st.error(f"Arquivo deve conter as seguintes colunas: {', '.join(colunas_obrigatorias)}. Colunas faltantes: {', '.join(colunas_faltantes)}")
                     return
                 
                 # Processar dados
-                df = df[colunas]
+                df = df[colunas_obrigatorias]
                 df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
                 df = df.dropna(subset=["DATA"])
                 df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
@@ -967,44 +969,78 @@ def registrar_atividades():
                 
                 # Salvar dados
                 if st.button("Salvar"):
-                    # Verificar duplicatas
+                    # Carregar dados existentes
                     df_existente = get_data("pos")
-                    novos_registros = []
-                    duplicatas = 0
                     
+                    # Preparar para análise de duplicatas
+                    novos_registros = []
+                    registros_duplicados = []
+                    
+                    # Criar uma lista de tuplas com as chaves de identificação dos registros existentes
+                    chaves_existentes = set()
+                    if not df_existente.empty:
+                        for _, row in df_existente.iterrows():
+                            chave = (
+                                str(row["DESC_OPERAÇÃO"]).strip() if "DESC_OPERAÇÃO" in row else "",
+                                str(row["DATA"]).strip() if "DATA" in row else "",
+                                int(row["SETOR"]) if "SETOR" in row else 0,
+                                str(row["TALHÃO"]).strip() if "TALHÃO" in row else ""
+                            )
+                            chaves_existentes.add(chave)
+                    
+                    # Verificar cada registro do arquivo
                     for _, row in df.iterrows():
+                        # Criar o dicionário com os dados do registro
                         dados = {
-                            "DESC_OPERAÇÃO": row["DESC_OPERAÇÃO"],
-                            "DATA": row["DATA"],
+                            "DESC_OPERAÇÃO": str(row["DESC_OPERAÇÃO"]).strip(),
+                            "DATA": str(row["DATA"]).strip(),
                             "SETOR": int(row["SETOR"]),
-                            "TALHÃO": row["TALHÃO"],
+                            "TALHÃO": str(row["TALHÃO"]).strip(),
                             "AREA": float(row["AREA"])
                         }
                         
+                        # Criar a chave para verificação de duplicatas
+                        chave = (
+                            dados["DESC_OPERAÇÃO"],
+                            dados["DATA"],
+                            dados["SETOR"],
+                            dados["TALHÃO"]
+                        )
+                        
                         # Verificar se já existe
-                        if df_existente.empty or not (
-                            (df_existente["SETOR"] == dados["SETOR"]) &
-                            (df_existente["TALHÃO"] == dados["TALHÃO"]) &
-                            (df_existente["DATA"] == dados["DATA"]) &
-                            (df_existente["DESC_OPERAÇÃO"] == dados["DESC_OPERAÇÃO"])
-                        ).any():
-                            novos_registros.append(dados)
+                        if chave in chaves_existentes:
+                            registros_duplicados.append(dados)
                         else:
-                            duplicatas += 1
+                            novos_registros.append(dados)
+                            # Adicionar à lista de chaves existentes para evitar duplicatas no próprio arquivo
+                            chaves_existentes.add(chave)
                     
                     # Salvar novos registros
+                    total_registros = len(novos_registros) + len(registros_duplicados)
+                    
                     if novos_registros:
-                        for dados in novos_registros:
-                            append_to_sheet(dados, "Pós")
-                        st.success(f"Salvos {len(novos_registros)} novos registros!")
+                        with st.spinner(f"Salvando {len(novos_registros)} registros..."):
+                            for dados in novos_registros:
+                                append_to_sheet(dados, "Pós")
+                            
+                        # Limpar cache para forçar recarregamento dos dados
+                        clear_data_cache("pos")
+                        
+                        # Mostrar mensagem de sucesso com detalhes
+                        st.success(f"✅ {len(novos_registros)} de {total_registros} registros foram salvos com sucesso!")
+                    else:
+                        st.warning("Nenhum novo registro para salvar.")
                     
-                    if duplicatas:
-                        st.warning(f"{duplicatas} registros duplicados foram ignorados")
-                    
-                    st.cache_data.clear()
+                    # Mostrar detalhes sobre duplicatas
+                    if registros_duplicados:
+                        with st.expander(f"⚠️ {len(registros_duplicados)} registros duplicados foram ignorados"):
+                            st.dataframe(pd.DataFrame(registros_duplicados))
+                            st.info("Os registros acima não foram adicionados porque já existem no banco de dados (com mesma DESC_OPERAÇÃO, DATA, SETOR e TALHÃO).")
                     
             except Exception as e:
                 st.error(f"Erro ao processar arquivo: {str(e)}")
+                import traceback
+                st.expander("Detalhes do erro", expanded=False).code(traceback.format_exc())
 
     elif tipo_atividade == "Auditoria":
         with st.form("form_auditoria"):
