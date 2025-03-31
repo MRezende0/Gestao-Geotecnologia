@@ -988,12 +988,6 @@ def registrar_atividades():
                         if "TALHÃO" in df_existente.columns:
                             df_existente["TALHÃO"] = df_existente["TALHÃO"].astype(str)
                     
-                    # Debug - Mostrar dados existentes
-                    with st.expander("Dados existentes no banco"):
-                        st.write(f"Total de registros existentes: {len(df_existente) if not df_existente.empty else 0}")
-                        if not df_existente.empty:
-                            st.dataframe(df_existente[["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO"]])
-                    
                     # Verificar cada registro do arquivo
                     for _, row in df.iterrows():
                         # Criar o dicionário com os dados do registro
@@ -1029,23 +1023,7 @@ def registrar_atividades():
                             # Adicionar ao DataFrame existente para evitar duplicatas no próprio arquivo
                             novo_df = pd.DataFrame([dados])
                             df_existente = pd.concat([df_existente, novo_df], ignore_index=True)
-                    
-                    # Debug - Mostrar novos registros e duplicados
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        with st.expander(f"Novos registros ({len(novos_registros)})"):
-                            if novos_registros:
-                                st.dataframe(pd.DataFrame(novos_registros))
-                            else:
-                                st.write("Nenhum novo registro")
-                    
-                    with col2:
-                        with st.expander(f"Registros duplicados ({len(registros_duplicados)})"):
-                            if registros_duplicados:
-                                st.dataframe(pd.DataFrame(registros_duplicados))
-                            else:
-                                st.write("Nenhum registro duplicado")
-                    
+            
                     # Salvar novos registros
                     total_registros = len(novos_registros) + len(registros_duplicados)
                     
@@ -1062,12 +1040,21 @@ def registrar_atividades():
                     else:
                         st.warning("Nenhum novo registro para salvar.")
                     
-                    # Mostrar detalhes sobre duplicatas
-                    if registros_duplicados:
-                        st.warning(f"⚠️ {len(registros_duplicados)} registros duplicados foram ignorados")
-                        with st.expander("Ver registros duplicados"):
-                            st.dataframe(pd.DataFrame(registros_duplicados))
-                            st.info("Os registros acima não foram adicionados porque já existem no banco de dados (com mesma DESC_OPERAÇÃO, DATA, SETOR e TALHÃO).")
+                    # Mostrar novos registros e duplicados
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        with st.expander(f"Novos registros ({len(novos_registros)})"):
+                            if novos_registros:
+                                st.dataframe(pd.DataFrame(novos_registros))
+                            else:
+                                st.write("Nenhum novo registro")
+                    
+                    with col2:
+                        with st.expander(f"Registros duplicados ({len(registros_duplicados)})"):
+                            if registros_duplicados:
+                                st.dataframe(pd.DataFrame(registros_duplicados))
+                            else:
+                                st.write("Nenhum registro duplicado")
                     
             except Exception as e:
                 st.error(f"Erro ao processar arquivo: {str(e)}")
