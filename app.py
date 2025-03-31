@@ -976,17 +976,23 @@ def registrar_atividades():
                     novos_registros = []
                     registros_duplicados = []
                     
-                    # Criar uma lista de tuplas com as chaves de identificação dos registros existentes
-                    chaves_existentes = set()
+                    # Verificar se há dados existentes
                     if not df_existente.empty:
-                        for _, row in df_existente.iterrows():
-                            chave = (
-                                str(row["DESC_OPERAÇÃO"]).strip() if "DESC_OPERAÇÃO" in row else "",
-                                str(row["DATA"]).strip() if "DATA" in row else "",
-                                int(row["SETOR"]) if "SETOR" in row else 0,
-                                str(row["TALHÃO"]).strip() if "TALHÃO" in row else ""
-                            )
-                            chaves_existentes.add(chave)
+                        # Converter para tipos adequados para comparação
+                        if "DATA" in df_existente.columns:
+                            df_existente["DATA"] = df_existente["DATA"].astype(str)
+                        if "SETOR" in df_existente.columns:
+                            df_existente["SETOR"] = df_existente["SETOR"].astype(int)
+                        if "DESC_OPERAÇÃO" in df_existente.columns:
+                            df_existente["DESC_OPERAÇÃO"] = df_existente["DESC_OPERAÇÃO"].astype(str)
+                        if "TALHÃO" in df_existente.columns:
+                            df_existente["TALHÃO"] = df_existente["TALHÃO"].astype(str)
+                    
+                    # Debug - Mostrar dados existentes
+                    with st.expander("Dados existentes no banco"):
+                        st.write(f"Total de registros existentes: {len(df_existente) if not df_existente.empty else 0}")
+                        if not df_existente.empty:
+                            st.dataframe(df_existente[["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO"]])
                     
                     # Verificar cada registro do arquivo
                     for _, row in df.iterrows():
@@ -999,21 +1005,46 @@ def registrar_atividades():
                             "AREA": float(row["AREA"])
                         }
                         
-                        # Criar a chave para verificação de duplicatas
-                        chave = (
-                            dados["DESC_OPERAÇÃO"],
-                            dados["DATA"],
-                            dados["SETOR"],
-                            dados["TALHÃO"]
-                        )
+                        # Verificar se já existe no DataFrame existente
+                        duplicado = False
                         
-                        # Verificar se já existe
-                        if chave in chaves_existentes:
+                        if not df_existente.empty:
+                            # Criar máscara para cada coluna de comparação
+                            mask_desc = df_existente["DESC_OPERAÇÃO"] == dados["DESC_OPERAÇÃO"]
+                            mask_data = df_existente["DATA"] == dados["DATA"]
+                            mask_setor = df_existente["SETOR"] == dados["SETOR"]
+                            mask_talhao = df_existente["TALHÃO"] == dados["TALHÃO"]
+                            
+                            # Combinar todas as máscaras
+                            mask_completa = mask_desc & mask_data & mask_setor & mask_talhao
+                            
+                            # Verificar se existe algum registro que atenda a todas as condições
+                            duplicado = mask_completa.any()
+                        
+                        # Adicionar à lista apropriada
+                        if duplicado:
                             registros_duplicados.append(dados)
                         else:
                             novos_registros.append(dados)
-                            # Adicionar à lista de chaves existentes para evitar duplicatas no próprio arquivo
-                            chaves_existentes.add(chave)
+                            # Adicionar ao DataFrame existente para evitar duplicatas no próprio arquivo
+                            novo_df = pd.DataFrame([dados])
+                            df_existente = pd.concat([df_existente, novo_df], ignore_index=True)
+                    
+                    # Debug - Mostrar novos registros e duplicados
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        with st.expander(f"Novos registros ({len(novos_registros)})"):
+                            if novos_registros:
+                                st.dataframe(pd.DataFrame(novos_registros))
+                            else:
+                                st.write("Nenhum novo registro")
+                    
+                    with col2:
+                        with st.expander(f"Registros duplicados ({len(registros_duplicados)})"):
+                            if registros_duplicados:
+                                st.dataframe(pd.DataFrame(registros_duplicados))
+                            else:
+                                st.write("Nenhum registro duplicado")
                     
                     # Salvar novos registros
                     total_registros = len(novos_registros) + len(registros_duplicados)
@@ -1033,7 +1064,8 @@ def registrar_atividades():
                     
                     # Mostrar detalhes sobre duplicatas
                     if registros_duplicados:
-                        with st.expander(f"⚠️ {len(registros_duplicados)} registros duplicados foram ignorados"):
+                        st.warning(f"⚠️ {len(registros_duplicados)} registros duplicados foram ignorados")
+                        with st.expander("Ver registros duplicados"):
                             st.dataframe(pd.DataFrame(registros_duplicados))
                             st.info("Os registros acima não foram adicionados porque já existem no banco de dados (com mesma DESC_OPERAÇÃO, DATA, SETOR e TALHÃO).")
                     
