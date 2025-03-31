@@ -1068,15 +1068,73 @@ def registrar_atividades():
                     total_registros = len(novos_registros) + len(registros_duplicados)
                     
                     if novos_registros:
-                        with st.spinner(f"Salvando {len(novos_registros)} registros..."):
-                            for dados in novos_registros:
-                                append_to_sheet(dados, "Pós")
-                            
-                        # Limpar cache para forçar recarregamento dos dados
-                        clear_data_cache("pos")
+                        # Definir tamanho do lote para envio
+                        tamanho_lote = 20  # Ajuste este valor conforme necessário
+                        total_lotes = (len(novos_registros) + tamanho_lote - 1) // tamanho_lote
                         
-                        # Mostrar mensagem de sucesso com detalhes
-                        st.success(f"✅ {len(novos_registros)} de {total_registros} registros foram salvos com sucesso!")
+                        # Criar um DataFrame para backup local
+                        df_backup = pd.DataFrame(novos_registros)
+                        
+                        # Salvar backup local em caso de falha
+                        os.makedirs(PASTA_POS, exist_ok=True)
+                        nome_backup = f"{PASTA_POS}/backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                        df_backup.to_csv(nome_backup, index=False)
+                        
+                        # Inicializar contadores
+                        registros_salvos = 0
+                        falhas = 0
+                        
+                        # Criar barra de progresso
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        try:
+                            # Processar em lotes
+                            for i in range(0, len(novos_registros), tamanho_lote):
+                                # Obter o lote atual
+                                lote_atual = novos_registros[i:i+tamanho_lote]
+                                lote_num = i // tamanho_lote + 1
+                                
+                                # Atualizar status
+                                status_text.text(f"Processando lote {lote_num} de {total_lotes} ({len(lote_atual)} registros)...")
+                                
+                                # Enviar lote para o Google Sheets
+                                for dados in lote_atual:
+                                    sucesso = append_to_sheet(dados, "Pós")
+                                    if sucesso:
+                                        registros_salvos += 1
+                                    else:
+                                        falhas += 1
+                                
+                                # Atualizar barra de progresso
+                                progress_bar.progress((i + len(lote_atual)) / len(novos_registros))
+                                
+                                # Pausa entre lotes para evitar limites de API
+                                if i + tamanho_lote < len(novos_registros):
+                                    time.sleep(1)  # Pausa de 1 segundo entre lotes
+                            
+                            # Limpar cache para forçar recarregamento dos dados
+                            clear_data_cache("pos")
+                            
+                            # Mostrar mensagem de sucesso com detalhes
+                            progress_bar.progress(1.0)
+                            status_text.empty()
+                            
+                            if falhas > 0:
+                                st.warning(f"⚠️ {registros_salvos} de {len(novos_registros)} registros foram salvos com sucesso. {falhas} registros não puderam ser salvos.")
+                                st.info(f"Um backup foi salvo em {nome_backup} para que você possa tentar novamente mais tarde.")
+                            else:
+                                st.success(f"✅ {registros_salvos} de {total_registros} registros foram salvos com sucesso!")
+                                # Remover arquivo de backup se tudo deu certo
+                                if os.path.exists(nome_backup):
+                                    os.remove(nome_backup)
+                        
+                        except Exception as e:
+                            # Em caso de erro, mostrar mensagem e informações sobre o backup
+                            st.error(f"Erro ao salvar registros: {str(e)}")
+                            st.info(f"Um backup foi salvo em {nome_backup} para que você possa tentar novamente mais tarde.")
+                            import traceback
+                            st.expander("Detalhes do erro", expanded=False).code(traceback.format_exc())
                     else:
                         st.warning("Nenhum novo registro para salvar.")
                     
