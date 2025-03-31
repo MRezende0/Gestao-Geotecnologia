@@ -948,10 +948,6 @@ def registrar_atividades():
                 # Ler o arquivo Excel
                 df_original = pd.read_excel(arquivo)
                 
-                # Mostrar preview dos dados originais
-                with st.expander("Preview da planilha original"):
-                    st.dataframe(df_original.head())
-                
                 # Mapeamento de possíveis nomes de colunas
                 mapeamento_colunas = {
                     "DESC_OPERAÇÃO": ["desc_operação", "desc_operacao", "descricao_operacao", "descricao", "operacao", "operação", "desc operação", "desc operacao", "tipo operacao", "tipo_operacao", "tipo de operação", "tipo_operação"],
@@ -997,11 +993,6 @@ def registrar_atividades():
                 df = df.dropna(subset=["DATA"])
                 df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
                 df["AREA"] = pd.to_numeric(df["AREA"], errors='coerce').fillna(0)
-                
-                # Mostrar mapeamento de colunas
-                with st.expander("Mapeamento de colunas"):
-                    for coluna_padrao, coluna_original in colunas_encontradas.items():
-                        st.write(f"**{coluna_original}** → **{coluna_padrao}**")
                 
                 # Mostrar preview dos dados processados
                 st.write("### Preview dos dados processados:")
