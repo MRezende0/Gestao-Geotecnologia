@@ -946,25 +946,65 @@ def registrar_atividades():
         if arquivo:
             try:
                 # Ler o arquivo Excel
-                df = pd.read_excel(arquivo)
+                df_original = pd.read_excel(arquivo)
                 
-                # Verificar colunas necessárias
-                colunas_obrigatorias = ["DESC_OPERAÇÃO", "DATA", "SETOR", "TALHÃO", "AREA"]
-                colunas_faltantes = [col for col in colunas_obrigatorias if col not in df.columns]
+                # Mostrar preview dos dados originais
+                with st.expander("Preview da planilha original"):
+                    st.dataframe(df_original.head())
                 
-                if colunas_faltantes:
-                    st.error(f"Arquivo deve conter as seguintes colunas: {', '.join(colunas_obrigatorias)}. Colunas faltantes: {', '.join(colunas_faltantes)}")
+                # Mapeamento de possíveis nomes de colunas
+                mapeamento_colunas = {
+                    "DESC_OPERAÇÃO": ["desc_operação", "desc_operacao", "descricao_operacao", "descricao", "operacao", "operação", "desc operação", "desc operacao", "tipo operacao", "tipo_operacao", "tipo de operação", "tipo_operação"],
+                    "DATA": ["data", "dt", "dt_operacao", "dt_operação", "data_operacao", "data_operação", "data operacao", "data operação", "date"],
+                    "SETOR": ["setor", "num_setor", "numero_setor", "nº setor", "n° setor", "n setor", "setor_num", "setor numero", "numero do setor"],
+                    "TALHÃO": ["talhão", "talhao", "talh", "num_talhao", "numero_talhao", "nº talhao", "n° talhao", "n talhao", "talhao_num", "talhao numero", "numero do talhao"],
+                    "AREA": ["area", "área", "hectares", "ha", "tamanho", "tam", "area_ha", "área_ha", "area(ha)", "área(ha)"]
+                }
+                
+                # Função para encontrar a coluna correspondente
+                def encontrar_coluna(df, nomes_possiveis):
+                    colunas_df = [col.lower().strip() for col in df.columns]
+                    for nome in nomes_possiveis:
+                        if nome.lower().strip() in colunas_df:
+                            idx = colunas_df.index(nome.lower().strip())
+                            return df.columns[idx]  # Retorna o nome original da coluna
+                    return None
+                
+                # Encontrar as colunas necessárias
+                colunas_encontradas = {}
+                colunas_nao_encontradas = []
+                
+                for coluna_padrao, alternativas in mapeamento_colunas.items():
+                    coluna_encontrada = encontrar_coluna(df_original, [coluna_padrao] + alternativas)
+                    if coluna_encontrada:
+                        colunas_encontradas[coluna_padrao] = coluna_encontrada
+                    else:
+                        colunas_nao_encontradas.append(coluna_padrao)
+                
+                # Verificar se todas as colunas necessárias foram encontradas
+                if colunas_nao_encontradas:
+                    st.error(f"Não foi possível encontrar as seguintes colunas obrigatórias: {', '.join(colunas_nao_encontradas)}")
+                    st.info("Verifique se a planilha contém estas informações com nomes diferentes e entre em contato com o suporte.")
                     return
                 
+                # Criar um novo DataFrame com as colunas padronizadas
+                df = pd.DataFrame()
+                for coluna_padrao, coluna_original in colunas_encontradas.items():
+                    df[coluna_padrao] = df_original[coluna_original]
+                
                 # Processar dados
-                df = df[colunas_obrigatorias]
                 df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
                 df = df.dropna(subset=["DATA"])
                 df["SETOR"] = pd.to_numeric(df["SETOR"], errors='coerce').fillna(0).astype(int)
                 df["AREA"] = pd.to_numeric(df["AREA"], errors='coerce').fillna(0)
                 
-                # Mostrar preview
-                st.write("### Preview dos dados:")
+                # Mostrar mapeamento de colunas
+                with st.expander("Mapeamento de colunas"):
+                    for coluna_padrao, coluna_original in colunas_encontradas.items():
+                        st.write(f"**{coluna_original}** → **{coluna_padrao}**")
+                
+                # Mostrar preview dos dados processados
+                st.write("### Preview dos dados processados:")
                 st.dataframe(df.head())
                 
                 # Salvar dados
