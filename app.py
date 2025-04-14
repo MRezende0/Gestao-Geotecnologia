@@ -2047,12 +2047,21 @@ def filtros_dashboard(df):
     if data_min == data_max:
         data_max = data_max + pd.Timedelta(days=1)
     
+    # Definir valor padrão para mostrar os últimos 6 dias
+    data_atual = datetime.now().date()
+    data_inicio_padrao = data_atual - timedelta(days=6)
+    
+    # Garantir que data_inicio_padrao não seja menor que data_min
+    data_inicio_padrao = max(data_inicio_padrao, data_min)
+    # Garantir que data_atual não seja maior que data_max
+    data_atual = min(data_atual, data_max)
+    
     # Barra deslizante para selecionar o intervalo de datas
     data_inicio, data_fim = st.sidebar.slider(
         "Intervalo de datas",
         min_value=data_min,
         max_value=data_max,
-        value=(data_min, data_max),
+        value=(data_inicio_padrao, data_atual),
         format="DD/MM/YYYY"
     )
 
