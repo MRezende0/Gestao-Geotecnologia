@@ -33,11 +33,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# Configuração do ArcGIS
-ARCGIS_USERNAME = st.secrets.get("ARCGIS_USERNAME", "geotecnologia.cocal")
-ARCGIS_PASSWORD = st.secrets.get("ARCGIS_PASSWORD", "Usinacocal_050486")
-ARCGIS_URL = st.secrets.get("ARCGIS_URL", "https://www.arcgis.com")
-
 # Estilo personalizado
 def add_custom_css():
     st.markdown("""
@@ -2327,90 +2322,3 @@ def clear_component_cache(component_key=None):
         keys_to_delete = [k for k in st.session_state.keys() if k.startswith("component_")]
         for key in keys_to_delete:
             del st.session_state[key]
-
-########################################## ARCGIS INTEGRATION ##########################################
-
-def get_arcgis_token():
-    """
-    Obtém um token de autenticação para o ArcGIS usando as credenciais armazenadas.
-    
-    Returns:
-        str: Token de autenticação ou None se falhar
-    """
-    try:
-        # Verificar se as credenciais estão configuradas
-        if not ARCGIS_USERNAME or not ARCGIS_PASSWORD:
-            st.warning("Credenciais do ArcGIS não configuradas. Configure-as no arquivo .streamlit/secrets.toml")
-            return None
-            
-        # URL para obter o token
-        token_url = f"{ARCGIS_URL}/sharing/rest/generateToken"
-        
-        # Dados para a requisição
-        data = {
-            'username': ARCGIS_USERNAME,
-            'password': ARCGIS_PASSWORD,
-            'referer': 'https://www.arcgis.com',
-            'f': 'json',
-            'expiration': 60  # Token válido por 60 minutos
-        }
-        
-        # Fazer a requisição
-        response = requests.post(token_url, data=data, verify=False)
-        response_json = response.json()
-        
-        if 'token' in response_json:
-            return response_json['token']
-        else:
-            st.error(f"Erro ao obter token: {response_json.get('error', 'Erro desconhecido')}")
-            return None
-    except Exception as e:
-        st.error(f"Erro ao obter token do ArcGIS: {str(e)}")
-        return None
-
-@st.cache_resource
-def exibir_mapa_arcgis(url, width=800, height=600, auto_login=True):
-    """
-    Exibe um mapa do ArcGIS usando autenticação automática.
-    
-    Args:
-        url: URL do mapa do ArcGIS
-        width: Largura do mapa em pixels
-        height: Altura do mapa em pixels
-        auto_login: Se True, tenta autenticar automaticamente
-    """
-    if not url:
-        st.error("É necessário fornecer uma URL para exibir o mapa.")
-        return
-        
-    try:
-        # Se auto_login estiver ativado, tenta obter um token
-        if auto_login:
-            token = get_arcgis_token()
-            if token:
-                # Adicionar token à URL para autenticação automática
-                if '?' in url:
-                    url = f"{url}&token={token}"
-                else:
-                    url = f"{url}?token={token}"
-                st.success("Autenticação automática realizada com sucesso!")
-            else:
-                st.warning("Não foi possível realizar a autenticação automática. Você pode precisar fazer login manualmente.")
-        
-        # Exibir o mapa usando um iframe
-        st.components.v1.iframe(url, width=width, height=height, scrolling=True)
-            
-    except Exception as e:
-        st.error(f"Erro ao exibir o mapa: {str(e)}")
-
-# Exemplo de como usar a função
-def mostrar_mapa_exemplo():
-    st.subheader("Mapa ArcGIS com Autenticação Automática")
-    
-    # URL do seu mapa ArcGIS
-    url_mapa = st.text_input("URL do mapa ArcGIS", value="")
-    
-    if url_mapa:
-        # Botão para exibir o mapa
-        if st.button("Exibir Mapa"):
-            exibir_mapa_arcgis(url_mapa, width=800, height=600)
