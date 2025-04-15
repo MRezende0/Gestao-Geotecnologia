@@ -1720,39 +1720,100 @@ def acompanhamento_reforma_expansao():
                 arcgis_username = st.secrets["ARCGIS_USERNAME"]
                 arcgis_password = st.secrets["ARCGIS_PASSWORD"]
                 
-                # Incorporando o mapa ArcGIS com login automático
+                # Incorporando o mapa ArcGIS com login automático usando a API JavaScript completa
                 arcgis_html = f"""
                 <html>
                 <head>
-                    <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
+                    <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/dark/main.css">
+                    <script src="https://js.arcgis.com/4.27/"></script>
+                    <style>
+                        html, body, #viewDiv {{
+                            padding: 0;
+                            margin: 0;
+                            height: 100%;
+                            width: 100%;
+                        }}
+                    </style>
                     <script>
-                        // Função para login automático no ArcGIS
-                        window.onload = function() {{
-                            try {{
-                                // Aguardar o carregamento do componente ArcGIS
-                                setTimeout(function() {{
-                                    var mapElement = document.querySelector('arcgis-embedded-map');
-                                    if (mapElement && mapElement.viewpoint) {{
-                                        // Realizar login automático
-                                        var portal = mapElement.viewpoint.portal;
-                                        if (portal) {{
-                                            portal.signIn({{
-                                                username: "{arcgis_username}",
-                                                password: "{arcgis_password}"
-                                            }}).catch(function(error) {{
-                                                console.error("Erro no login automático:", error);
-                                            }});
-                                        }}
+                        require([
+                            "esri/config",
+                            "esri/WebMap",
+                            "esri/views/MapView",
+                            "esri/identity/IdentityManager",
+                            "esri/portal/Portal",
+                            "esri/widgets/BasemapGallery",
+                            "esri/widgets/LayerList",
+                            "esri/widgets/Legend",
+                            "esri/widgets/Expand"
+                        ], function(esriConfig, WebMap, MapView, IdentityManager, Portal, BasemapGallery, LayerList, Legend, Expand) {{
+                            // Configurar a URL do portal
+                            esriConfig.portalUrl = "https://cocal.maps.arcgis.com";
+                            
+                            // Realizar login automático
+                            IdentityManager.registerToken({{
+                                server: "https://cocal.maps.arcgis.com/sharing/rest",
+                                token: "",  // Token será gerado automaticamente
+                                userId: "{arcgis_username}",
+                                expires: Date.now() + (1000 * 60 * 60 * 24)  // 24 horas
+                            }});
+                            
+                            // Criar uma instância do portal
+                            const portal = new Portal();
+                            
+                            // Fazer login no portal
+                            portal.authMode = "immediate";
+                            portal.load().then(function() {{
+                                // Carregar o WebMap usando o ID do mapa
+                                const webmap = new WebMap({{
+                                    portalItem: {{
+                                        id: "3e59094202574c07ac103f93b6700339"
                                     }}
-                                }}, 2000); // Aguardar 2 segundos para garantir que o componente esteja carregado
-                            }} catch (e) {{
-                                console.error("Erro ao tentar login automático:", e);
-                            }}
-                        }};
+                                }});
+                                
+                                // Criar a visualização do mapa
+                                const view = new MapView({{
+                                    container: "viewDiv",
+                                    map: webmap
+                                }});
+                                
+                                // Adicionar widgets úteis
+                                const layerListExpand = new Expand({{
+                                    view: view,
+                                    content: new LayerList({{ view: view }}),
+                                    expanded: false,
+                                    mode: "floating",
+                                    group: "top-right"
+                                }});
+                                
+                                const legendExpand = new Expand({{
+                                    view: view,
+                                    content: new Legend({{ view: view }}),
+                                    expanded: false,
+                                    mode: "floating",
+                                    group: "top-right"
+                                }});
+                                
+                                view.ui.add([layerListExpand, legendExpand], "top-right");
+                                
+                                // Login usando credenciais
+                                IdentityManager.checkSignInStatus(esriConfig.portalUrl + "/sharing")
+                                    .then(function() {{
+                                        console.log("Usuário já está logado");
+                                    }}).catch(function() {{
+                                        IdentityManager.getCredential(esriConfig.portalUrl + "/sharing", {{
+                                            username: "{arcgis_username}",
+                                            password: "{arcgis_password}",
+                                            error: function(error) {{
+                                                console.error("Erro de login:", error);
+                                            }}
+                                        }});
+                                    }});
+                            }});
+                        }});
                     </script>
                 </head>
                 <body>
-                    <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+                    <div id="viewDiv"></div>
                 </body>
                 </html>
                 """
