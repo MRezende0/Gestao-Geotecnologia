@@ -1720,30 +1720,30 @@ def acompanhamento_reforma_expansao():
             <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
         </head>
         <body>
-            <arcgis-embedded-map style="height:400px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+            <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
         </body>
         </html>
         """
-        components.html(arcgis_html, height=400, scrolling=True)
+        components.html(arcgis_html, height=500, scrolling=True)
         
         # Legenda centralizada e mais próxima do mapa
         st.markdown("""
         <div style="display:flex; justify-content:center; margin-top:-15px; margin-bottom:10px;">
-            <div style="display:flex; align-items:center; background-color:#f8f9fa; padding:5px 15px; border-radius:5px;">
+            <div style="display:flex; align-items:center; background-color:#fff; padding:5px 15px; border-radius:5px;">
                 <div style="display:flex; align-items:center; margin:0 15px;">
-                    <div style="background-color:#1E88E5; width:20px; height:20px; margin-right:5px;"></div>
+                    <div style="background-color: #006fff; width:20px; height:20px; margin-right:5px;"></div>
                     <span>Concluído</span>
                 </div>
                 <div style="display:flex; align-items:center; margin:0 15px;">
-                    <div style="background-color:#FFC107; width:20px; height:20px; margin-right:5px;"></div>
+                    <div style="background-color: #ffff00; width:20px; height:20px; margin-right:5px;"></div>
                     <span>Em andamento</span>
                 </div>
                 <div style="display:flex; align-items:center; margin:0 15px;">
-                    <div style="background-color:#E53935; width:20px; height:20px; margin-right:5px;"></div>
+                    <div style="background-color: #ed726f; width:20px; height:20px; margin-right:5px;"></div>
                     <span>A fazer</span>
                 </div>
                 <div style="display:flex; align-items:center; margin:0 15px;">
-                    <div style="border:2px solid #4CAF50; width:20px; height:20px; margin-right:5px;"></div>
+                    <div style="border:2px solid #7bfa3c; width:20px; height:20px; margin-right:5px;"></div>
                     <span>Expansão</span>
                 </div>
             </div>
