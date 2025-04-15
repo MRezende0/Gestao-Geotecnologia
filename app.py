@@ -1713,17 +1713,77 @@ def acompanhamento_reforma_expansao():
 
         st.subheader("Mapa")
 
-        # Incorporando o mapa ArcGIS usando components.html
-        arcgis_html = """
-        <html>
-        <head>
-            <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
-        </head>
-        <body>
-            <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
-        </body>
-        </html>
-        """
+        # Obter credenciais do ArcGIS a partir dos segredos do Streamlit
+        try:
+            # Verificar se as credenciais do ArcGIS estão disponíveis nos segredos do Streamlit
+            if "ARCGIS_USERNAME" in st.secrets and "ARCGIS_PASSWORD" in st.secrets:
+                arcgis_username = st.secrets["ARCGIS_USERNAME"]
+                arcgis_password = st.secrets["ARCGIS_PASSWORD"]
+                
+                # Incorporando o mapa ArcGIS com login automático
+                arcgis_html = f"""
+                <html>
+                <head>
+                    <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
+                    <script>
+                        // Função para login automático no ArcGIS
+                        window.onload = function() {{
+                            try {{
+                                // Aguardar o carregamento do componente ArcGIS
+                                setTimeout(function() {{
+                                    var mapElement = document.querySelector('arcgis-embedded-map');
+                                    if (mapElement && mapElement.viewpoint) {{
+                                        // Realizar login automático
+                                        var portal = mapElement.viewpoint.portal;
+                                        if (portal) {{
+                                            portal.signIn({{
+                                                username: "{arcgis_username}",
+                                                password: "{arcgis_password}"
+                                            }}).catch(function(error) {{
+                                                console.error("Erro no login automático:", error);
+                                            }});
+                                        }}
+                                    }}
+                                }}, 2000); // Aguardar 2 segundos para garantir que o componente esteja carregado
+                            }} catch (e) {{
+                                console.error("Erro ao tentar login automático:", e);
+                            }}
+                        }};
+                    </script>
+                </head>
+                <body>
+                    <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+                </body>
+                </html>
+                """
+            else:
+                # Se as credenciais não estiverem disponíveis, usar o mapa sem login automático
+                arcgis_html = """
+                <html>
+                <head>
+                    <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
+                </head>
+                <body>
+                    <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+                </body>
+                </html>
+                """
+                st.info("Configuração de login automático não disponível. Configure as credenciais nos segredos do Streamlit.")
+        except Exception as e:
+            # Em caso de erro, usar o mapa sem login automático
+            arcgis_html = """
+            <html>
+            <head>
+                <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
+            </head>
+            <body>
+                <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+            </body>
+            </html>
+            """
+            st.error(f"Erro ao configurar login automático: {str(e)}")
+            
+        # Exibir o mapa
         components.html(arcgis_html, height=500, scrolling=True)
         
         # Legenda centralizada e mais próxima do mapa
