@@ -1720,44 +1720,35 @@ def acompanhamento_reforma_expansao():
             <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
         </head>
         <body>
-            <arcgis-embedded-map style="height:600px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
+            <arcgis-embedded-map style="height:400px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
         </body>
         </html>
         """
-        components.html(arcgis_html, height=650, scrolling=False)
-
-        # Adicionar legenda do mapa em uma única linha com várias colunas
-        st.write("**Legenda do Mapa:**")
+        components.html(arcgis_html, height=400, scrolling=True)
         
-        # Criar colunas para a legenda
-        legenda_cols = st.columns(4)
-        
-        # Definir cores para os quadrados da legenda
-        azul = "#1E88E5"
-        amarelo = "#FFC107"
-        vermelho = "#E53935"
-        verde = "#4CAF50"
-        
-        # Adicionar itens da legenda em cada coluna
-        with legenda_cols[0]:
-            st.markdown(f"<div style='display:flex;align-items:center;'>"
-                      f"<div style='background-color:{azul};width:20px;height:20px;margin-right:5px;'></div>"
-                      f"<span>Concluído</span></div>", unsafe_allow_html=True)
-        
-        with legenda_cols[1]:
-            st.markdown(f"<div style='display:flex;align-items:center;'>"
-                      f"<div style='background-color:{amarelo};width:20px;height:20px;margin-right:5px;'></div>"
-                      f"<span>Em andamento</span></div>", unsafe_allow_html=True)
-        
-        with legenda_cols[2]:
-            st.markdown(f"<div style='display:flex;align-items:center;'>"
-                      f"<div style='background-color:{vermelho};width:20px;height:20px;margin-right:5px;'></div>"
-                      f"<span>A fazer</span></div>", unsafe_allow_html=True)
-        
-        with legenda_cols[3]:
-            st.markdown(f"<div style='display:flex;align-items:center;'>"
-                      f"<div style='border:2px solid {verde};width:20px;height:20px;margin-right:5px;'></div>"
-                      f"<span>Expansão</span></div>", unsafe_allow_html=True)
+        # Legenda centralizada e mais próxima do mapa
+        st.markdown("""
+        <div style="display:flex; justify-content:center; margin-top:-15px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; background-color:#f8f9fa; padding:5px 15px; border-radius:5px;">
+                <div style="display:flex; align-items:center; margin:0 15px;">
+                    <div style="background-color:#1E88E5; width:20px; height:20px; margin-right:5px;"></div>
+                    <span>Concluído</span>
+                </div>
+                <div style="display:flex; align-items:center; margin:0 15px;">
+                    <div style="background-color:#FFC107; width:20px; height:20px; margin-right:5px;"></div>
+                    <span>Em andamento</span>
+                </div>
+                <div style="display:flex; align-items:center; margin:0 15px;">
+                    <div style="background-color:#E53935; width:20px; height:20px; margin-right:5px;"></div>
+                    <span>A fazer</span>
+                </div>
+                <div style="display:flex; align-items:center; margin:0 15px;">
+                    <div style="border:2px solid #4CAF50; width:20px; height:20px; margin-right:5px;"></div>
+                    <span>Expansão</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         ####################### TABELAS ########################
         st.divider()
