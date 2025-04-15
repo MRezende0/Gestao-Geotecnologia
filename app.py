@@ -1715,8 +1715,16 @@ def acompanhamento_reforma_expansao():
 
         # Obter credenciais do ArcGIS a partir dos segredos do Streamlit
         try:
+            # Verificar quais segredos estão disponíveis (apenas para debug)
+            secrets_keys = list(st.secrets.keys())
+            
+            # Definir credenciais diretamente para garantir o funcionamento
+            arcgis_username = "geotecnologia.cocal"
+            arcgis_password = "Usinacocal_050486"
+            
             # Verificar se as credenciais do ArcGIS estão disponíveis nos segredos do Streamlit
             if "ARCGIS_USERNAME" in st.secrets and "ARCGIS_PASSWORD" in st.secrets:
+                # Se estiverem nos segredos, usar esses valores
                 arcgis_username = st.secrets["ARCGIS_USERNAME"]
                 arcgis_password = st.secrets["ARCGIS_PASSWORD"]
                 
