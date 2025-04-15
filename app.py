@@ -1726,6 +1726,65 @@ def acompanhamento_reforma_expansao():
         """
         components.html(arcgis_html, height=650, scrolling=False)
 
+        # Adicionar legenda do mapa em uma única linha com várias colunas
+        st.markdown("""
+        <style>
+        .legenda-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .legenda-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        .legenda-cor {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+        .legenda-azul {
+            background-color: #1E88E5;
+        }
+        .legenda-amarelo {
+            background-color: #FFC107;
+        }
+        .legenda-vermelho {
+            background-color: #E53935;
+        }
+        .legenda-verde-contorno {
+            background-color: transparent;
+            border: 2px solid #4CAF50;
+        }
+        </style>
+        <div class="legenda-container">
+            <div class="legenda-item">
+                <div class="legenda-cor legenda-azul"></div>
+                <span>Concluído</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-cor legenda-amarelo"></div>
+                <span>Em andamento</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-cor legenda-vermelho"></div>
+                <span>A fazer</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-cor legenda-verde-contorno"></div>
+                <span>Expansão</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         ####################### TABELAS ########################
         st.divider()
 
