@@ -1713,131 +1713,130 @@ def acompanhamento_reforma_expansao():
 
         st.subheader("Mapa")
 
-        # Obter credenciais do ArcGIS a partir dos segredos do Streamlit
+        # Usar a abordagem mais simples e direta para o mapa ArcGIS com login embutido
         try:
-            # Verificar quais segredos estão disponíveis (apenas para debug)
-            secrets_keys = list(st.secrets.keys())
+            # Definir credenciais diretamente
+            username = "geotecnologia.cocal"
+            password = "Usinacocal_050486"
             
-            # Definir credenciais diretamente para garantir o funcionamento
-            arcgis_username = "geotecnologia.cocal"
-            arcgis_password = "Usinacocal_050486"
-            
-            # Verificar se as credenciais do ArcGIS estão disponíveis nos segredos do Streamlit
-            if "ARCGIS_USERNAME" in st.secrets and "ARCGIS_PASSWORD" in st.secrets:
-                # Se estiverem nos segredos, usar esses valores
-                arcgis_username = st.secrets["ARCGIS_USERNAME"]
-                arcgis_password = st.secrets["ARCGIS_PASSWORD"]
-                
-                # Incorporando o mapa ArcGIS com login automático usando a API JavaScript completa
-                arcgis_html = f"""
-                <html>
-                <head>
-                    <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/dark/main.css">
-                    <script src="https://js.arcgis.com/4.27/"></script>
-                    <style>
-                        html, body, #viewDiv {{
-                            padding: 0;
-                            margin: 0;
-                            height: 100%;
-                            width: 100%;
+            # Incorporar o mapa ArcGIS com credenciais embutidas
+            arcgis_html = f"""
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+                <title>Mapa ArcGIS</title>
+                <style>
+                    html, body, #viewDiv {{ padding: 0; margin: 0; height: 100%; width: 100%; }}
+                </style>
+                <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/dark/main.css" />
+                <script src="https://js.arcgis.com/4.27/"></script>
+                <script>
+                    // Configuração para login automático no ArcGIS
+                    const username = "{username}";
+                    const password = "{password}";
+                    const portalUrl = "https://cocal.maps.arcgis.com";
+                    const webmapId = "3e59094202574c07ac103f93b6700339";
+                    
+                    require([
+                        "esri/config",
+                        "esri/WebMap",
+                        "esri/views/MapView",
+                        "esri/identity/IdentityManager",
+                        "esri/widgets/LayerList",
+                        "esri/widgets/Legend",
+                        "esri/widgets/Expand"
+                    ], function(esriConfig, WebMap, MapView, identityManager, LayerList, Legend, Expand) {{
+                        // Configurar a URL do portal
+                        esriConfig.portalUrl = portalUrl;
+                        
+                        // Função para gerar token de autenticação
+                        function generateToken() {{
+                            // Criar um objeto XMLHttpRequest para fazer a solicitação de token
+                            const xhr = new XMLHttpRequest();
+                            xhr.open("POST", portalUrl + "/sharing/rest/generateToken", false);
+                            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                            
+                            // Preparar os dados para a solicitação
+                            const data = 
+                                "username=" + encodeURIComponent(username) + 
+                                "&password=" + encodeURIComponent(password) + 
+                                "&referer=" + encodeURIComponent(window.location.origin) + 
+                                "&expiration=60" + 
+                                "&f=json";
+                            
+                            // Enviar a solicitação
+                            xhr.send(data);
+                            
+                            // Processar a resposta
+                            if (xhr.status === 200) {{
+                                const response = JSON.parse(xhr.responseText);
+                                if (response.token) {{
+                                    return response.token;
+                                }} else {{
+                                    console.error("Erro ao gerar token:", response.error);
+                                    return null;
+                                }}
+                            }} else {{
+                                console.error("Erro na solicitação de token:", xhr.status);
+                                return null;
+                            }}
                         }}
-                    </style>
-                    <script>
-                        require([
-                            "esri/config",
-                            "esri/WebMap",
-                            "esri/views/MapView",
-                            "esri/identity/IdentityManager",
-                            "esri/portal/Portal",
-                            "esri/widgets/BasemapGallery",
-                            "esri/widgets/LayerList",
-                            "esri/widgets/Legend",
-                            "esri/widgets/Expand"
-                        ], function(esriConfig, WebMap, MapView, IdentityManager, Portal, BasemapGallery, LayerList, Legend, Expand) {{
-                            // Configurar a URL do portal
-                            esriConfig.portalUrl = "https://cocal.maps.arcgis.com";
-                            
-                            // Realizar login automático
-                            IdentityManager.registerToken({{
-                                server: "https://cocal.maps.arcgis.com/sharing/rest",
-                                token: "",  // Token será gerado automaticamente
-                                userId: "{arcgis_username}",
-                                expires: Date.now() + (1000 * 60 * 60 * 24)  // 24 horas
+                        
+                        // Obter token
+                        const token = generateToken();
+                        
+                        if (token) {{
+                            // Registrar o token no IdentityManager
+                            identityManager.registerToken({{
+                                server: portalUrl + "/sharing/rest",
+                                token: token,
+                                userId: username
                             }});
                             
-                            // Criar uma instância do portal
-                            const portal = new Portal();
-                            
-                            // Fazer login no portal
-                            portal.authMode = "immediate";
-                            portal.load().then(function() {{
-                                // Carregar o WebMap usando o ID do mapa
-                                const webmap = new WebMap({{
-                                    portalItem: {{
-                                        id: "3e59094202574c07ac103f93b6700339"
-                                    }}
-                                }});
-                                
-                                // Criar a visualização do mapa
-                                const view = new MapView({{
-                                    container: "viewDiv",
-                                    map: webmap
-                                }});
-                                
-                                // Adicionar widgets úteis
-                                const layerListExpand = new Expand({{
-                                    view: view,
-                                    content: new LayerList({{ view: view }}),
-                                    expanded: false,
-                                    mode: "floating",
-                                    group: "top-right"
-                                }});
-                                
-                                const legendExpand = new Expand({{
-                                    view: view,
-                                    content: new Legend({{ view: view }}),
-                                    expanded: false,
-                                    mode: "floating",
-                                    group: "top-right"
-                                }});
-                                
-                                view.ui.add([layerListExpand, legendExpand], "top-right");
-                                
-                                // Login usando credenciais
-                                IdentityManager.checkSignInStatus(esriConfig.portalUrl + "/sharing")
-                                    .then(function() {{
-                                        console.log("Usuário já está logado");
-                                    }}).catch(function() {{
-                                        IdentityManager.getCredential(esriConfig.portalUrl + "/sharing", {{
-                                            username: "{arcgis_username}",
-                                            password: "{arcgis_password}",
-                                            error: function(error) {{
-                                                console.error("Erro de login:", error);
-                                            }}
-                                        }});
-                                    }});
+                            // Carregar o webmap
+                            const webmap = new WebMap({{
+                                portalItem: {{
+                                    id: webmapId
+                                }}
                             }});
-                        }});
-                    </script>
-                </head>
-                <body>
-                    <div id="viewDiv"></div>
-                </body>
-                </html>
-                """
-            else:
-                # Se as credenciais não estiverem disponíveis, usar o mapa sem login automático
-                arcgis_html = """
-                <html>
-                <head>
-                    <script type="module" src="https://js.arcgis.com/embeddable-components/4.32/arcgis-embeddable-components.esm.js"></script>
-                </head>
-                <body>
-                    <arcgis-embedded-map style="height:500px;width:100%;" item-id="3e59094202574c07ac103f93b6700339" theme="dark" portal-url="https://cocal.maps.arcgis.com"></arcgis-embedded-map>
-                </body>
-                </html>
-                """
-                st.info("Configuração de login automático não disponível. Configure as credenciais nos segredos do Streamlit.")
+                            
+                            // Criar a visualização do mapa
+                            const view = new MapView({{
+                                container: "viewDiv",
+                                map: webmap
+                            }});
+                            
+                            // Adicionar widgets úteis
+                            const layerListExpand = new Expand({{
+                                view: view,
+                                content: new LayerList({{ view: view }}),
+                                expanded: false,
+                                mode: "floating",
+                                group: "top-right"
+                            }});
+                            
+                            const legendExpand = new Expand({{
+                                view: view,
+                                content: new Legend({{ view: view }}),
+                                expanded: false,
+                                mode: "floating",
+                                group: "top-right"
+                            }});
+                            
+                            view.ui.add([layerListExpand, legendExpand], "top-right");
+                        }} else {{
+                            // Se não conseguir obter o token, exibir mensagem de erro
+                            document.getElementById("viewDiv").innerHTML = "<div style='padding:20px;color:white;'>Erro ao autenticar. Por favor, verifique as credenciais.</div>";
+                        }}
+                    }});
+                </script>
+            </head>
+            <body>
+                <div id="viewDiv"></div>
+            </body>
+            </html>
+            """
         except Exception as e:
             # Em caso de erro, usar o mapa sem login automático
             arcgis_html = """
