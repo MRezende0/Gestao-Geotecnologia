@@ -851,23 +851,37 @@ def registrar_atividades():
         # Ordenar o DataFrame pelo número do setor em ordem crescente
         df_editavel = df_editavel.sort_values(by="Setor")
         
-        # Adicionar filtro de setor
-        st.markdown("#### 🔍 Filtrar por Setor")
-
+        # Adicionar filtros em duas colunas
+        st.markdown("#### 🔍 Filtros")
         
-        # Obter lista de setores únicos
-        setores_unicos = sorted(df_editavel["Setor"].unique())
+        # Criar layout de duas colunas para os filtros
+        col1, col2 = st.columns(2)
         
-        # Criar um campo de texto para filtrar por setor
-        filtro_setor = st.text_input("Digite o número do setor:")
+        with col1:
+            # Obter lista de setores únicos
+            setores_unicos = sorted(df_editavel["Setor"].unique())
+            
+            # Criar um campo de texto para filtrar por setor
+            filtro_setor = st.text_input("Digite o número do setor:")
+            
+            # Aplicar filtro se o usuário digitar algo
+            if filtro_setor:
+                try:
+                    setor_filtrado = int(filtro_setor)
+                    df_editavel = df_editavel[df_editavel["Setor"] == setor_filtrado]
+                except ValueError:
+                    st.warning("Por favor, digite um número válido para o setor")
         
-        # Aplicar filtro se o usuário digitar algo
-        if filtro_setor:
-            try:
-                setor_filtrado = int(filtro_setor)
-                df_editavel = df_editavel[df_editavel["Setor"] == setor_filtrado]
-            except ValueError:
-                st.warning("Por favor, digite um número válido para o setor")
+        with col2:
+            # Obter valores únicos da coluna Projeto
+            projetos_unicos = ["Todos"] + sorted([str(p) for p in df_editavel["Projeto"].unique() if str(p) != "nan"])
+            
+            # Criar um seletor para filtrar por status do Projeto
+            filtro_projeto = st.selectbox("Filtrar por status do Projeto:", options=projetos_unicos)
+            
+            # Aplicar filtro se o usuário selecionar um valor diferente de "Todos"
+            if filtro_projeto != "Todos":
+                df_editavel = df_editavel[df_editavel["Projeto"] == filtro_projeto]
         
         # Criar um editor de dados
         df_editado = st.data_editor(
