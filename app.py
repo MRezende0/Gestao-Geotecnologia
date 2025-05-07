@@ -1716,8 +1716,8 @@ def acompanhamento_reforma_expansao():
         # Usar a abordagem mais simples e direta para o mapa ArcGIS com login embutido
         try:
             # Definir credenciais diretamente
-            username = "geotecnologia.cocal"
-            password = "Usinacocal_050486"
+            username = "matheus.rezende_cocal"
+            password = "Marilia@220502"
             
             # Incorporar o mapa ArcGIS com credenciais embutidas
             arcgis_html = f"""
